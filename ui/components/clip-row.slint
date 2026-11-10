@@ -1,0 +1,126 @@
+import { Theme } from "../theme.slint";
+import { Tick } from "primitives.slint";
+
+component PlayBadge inherits Rectangle {
+    width: 48px;
+    height: 48px;
+    border-radius: 24px;
+    background: Theme.window-bg;
+
+    Path {
+        x: (parent.width - 13px) / 2 + 1.5px;
+        y: (parent.height - 15px) / 2;
+        width: 13px;
+        height: 15px;
+        viewbox-width: 17;
+        viewbox-height: 19;
+        commands: "M 0 0 L 17 9.5 L 0 19 Z";
+        fill: Theme.text;
+    }
+}
+
+component VideoThumb inherits Rectangle {
+    border-radius: 4.6px;
+    clip: true;
+    background: @linear-gradient(150deg, Theme.outline 0%, Theme.card-bg 55%, Theme.window-bg 100%);
+
+    Rectangle {
+        y: parent.height * 0.45;
+        height: parent.height * 0.55;
+        background: @linear-gradient(180deg, Theme.window-bg.with-alpha(0) 0%, Theme.window-bg.with-alpha(0.6) 100%);
+    }
+    PlayBadge {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+}
+
+component Badge inherits Rectangle {
+    in property <string> label;
+    in property <bool> ready;
+
+    height: Math.max(25px, badge-text.preferred-height + 6px);
+    border-radius: Theme.radius-control;
+    background: ready ? Theme.badge-ready-bg : Theme.badge-pending-bg;
+    width: badge-text.preferred-width + (ready ? 50px : 42px);
+
+    badge-text := Text {
+        x: 9.7px;
+        y: 0;
+        height: parent.height;
+        text: root.label;
+        color: root.ready ? Theme.badge-ready-text : Theme.badge-pending-text;
+        font-size: 13px;
+        vertical-alignment: center;
+    }
+
+    if ready : Rectangle {
+        x: parent.width - 26px;
+        y: (parent.height - self.height) / 2;
+        width: 12px;
+        height: 12px;
+        border-radius: 2.3px;
+        background: Theme.success;
+
+        Tick { }
+    }
+
+    if !ready : Path {
+        x: parent.width - 20px;
+        y: (parent.height - self.height) / 2;
+        width: 8.4px;
+        height: 11px;
+        viewbox-width: 11;
+        viewbox-height: 14;
+        commands: "M 0 0 L 11 0 L 5.5 6.2 L 11 14 L 0 14 L 5.5 6.2 Z";
+        fill: Theme.badge-pending-text;
+    }
+}
+
+export component ClipRow inherits Rectangle {
+    in property <string> file-name;
+    in property <bool> ready;
+    in property <bool> phone;
+
+    FlexboxLayout {
+        min-width: 0px;
+        preferred-width: 0px;
+        flex-direction: root.phone ? column : row;
+        flex-wrap: no-wrap;
+        cross-axis-alignment: root.phone ? center : stretch;
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 17px;
+
+        VerticalLayout {
+            alignment: center;
+            VideoThumb {
+                width: 114px;
+                height: 64px;
+            }
+        }
+        Text {
+            width: root.phone ? root.width - 28px : Math.max(0px, root.width - 176px - status-badge.width);
+            height: self.preferred-height;
+            cross-axis-self-alignment: center;
+            text: root.file-name;
+            color: Theme.text;
+            font-size: 16px;
+            font-weight: 600;
+            wrap: char-wrap;
+            horizontal-alignment: root.phone ? center : left;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            status-badge := Badge {
+                label: root.ready ? "Click to Copy" : "Pending";
+                ready: root.ready;
+            }
+        }
+    }
+}

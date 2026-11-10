@@ -1,0 +1,54 @@
+import { Theme } from "../theme.slint";
+import { Tick } from "primitives.slint";
+
+export component CheckSquare inherits Rectangle {
+    in-out property <bool> checked;
+    in property <bool> interactive: true;
+
+    property <length> tick-extent: root.checked ? root.width : 0.1px;
+
+    width: 17px;
+    height: 17px;
+    border-radius: 3.8px;
+    background: root.checked ? Theme.accent : Theme.field-bg;
+    border-width: 1px;
+    border-color: root.checked ? Theme.accent : Theme.outline;
+
+    animate background { duration: 160ms; easing: ease-out; }
+    animate border-color { duration: 160ms; easing: ease-out; }
+    animate tick-extent { duration: 160ms; easing: ease-out; }
+
+    Tick {
+        scale: root.tick-extent / root.width;
+    }
+
+    if interactive : TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.checked = !root.checked; }
+    }
+}
+
+export component CheckItem inherits HorizontalLayout {
+    in-out property <bool> checked;
+    in property <string> label;
+    out property <length> label-width: label-text.preferred-width;
+
+    spacing: 8.4px;
+    alignment: start;
+
+    VerticalLayout {
+        alignment: center;
+        CheckSquare {
+            checked <=> root.checked;
+        }
+    }
+
+    label-text := Text {
+        width: root.width - 25.4px;
+        text: root.label;
+        color: Theme.text;
+        font-size: 15px;
+        wrap: word-wrap;
+        vertical-alignment: center;
+    }
+}

@@ -1,0 +1,268 @@
+import { Theme } from "theme.slint";
+import { ScrollView } from "std-widgets.slint";
+import { Divider } from "components/primitives.slint";
+import { DropTarget } from "components/drop-target.slint";
+import { ClipRow } from "components/clip-row.slint";
+import { SegmentedBar } from "components/segmented-bar.slint";
+import { CheckItem } from "components/check-box.slint";
+import { AudioTrackRow } from "components/audio-track-row.slint";
+import { SectionLabel, SettingColumn, InlineLabel, NumberField, Reveal } from "components/setting-controls.slint";
+
+export component AppWindow inherits Window {
+    in-out property <int> counter: 42;
+    callback request-increase-value();
+
+    title: "QuickClip Compress";
+    background: Theme.window-bg;
+    preferred-width: 1141px;
+    preferred-height: 762px;
+    min-width: 320px;
+    default-font-family: "Open Sans";
+
+    property <bool> tablet: root.width < 800px * (compression-label.font-size / 13px);
+    property <bool> phone: root.width < 480px * (compression-label.font-size / 13px);
+    property <length> page-width: content-scroll.visible-width - 42px;
+    property <length> setting-width: root.tablet ? root.page-width : (root.page-width - 22px) / 2;
+
+    in-out property <int> codec: 1;
+    in-out property <int> size: 0;
+    in-out property <string> custom-size: "8";
+    in-out property <int> resolution: 1;
+    in-out property <string> custom-width: "1920";
+    in-out property <string> custom-height: "1080";
+    in-out property <bool> copy-on-finish: false;
+    in-out property <bool> track-game: true;
+    in-out property <bool> track-mic: true;
+    in-out property <bool> track-party: false;
+
+    VerticalLayout {
+        spacing: 0px;
+
+        Rectangle {
+            height: Math.max(26px, window-title.preferred-height + 10px);
+            background: Theme.header-bg;
+
+            window-title := Text {
+                text: "QuickClip Compress";
+                color: Theme.text;
+                font-size: 11px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                background: Theme.divider;
+            }
+        }
+
+        content-scroll := ScrollView {
+            horizontal-scrollbar-policy: always-off;
+            content-width: self.visible-width;
+            content-height: Math.max(self.visible-height, content.min-height);
+
+            content := VerticalLayout {
+                min-width: 0px;
+                width: content-scroll.visible-width;
+                padding-left: 21px;
+                padding-right: 21px;
+                padding-top: 14px;
+                padding-bottom: 20px;
+                spacing: 0px;
+
+                dropzone := DropTarget {
+                    width: root.page-width;
+                    height: Math.max(95px, self.preferred-content-height);
+                }
+                Rectangle { height: 20px; }
+
+                Rectangle {
+                    width: root.page-width;
+                    min-height: Math.max(root.phone ? 0px : 182px, clip-pending.min-height + clip-ready.min-height + 1px);
+                    vertical-stretch: 0;
+                    background: Theme.card-bg;
+                    border-radius: 7.7px;
+
+                    VerticalLayout {
+                        spacing: 0px;
+
+                        clip-pending := ClipRow {
+                            width: root.page-width;
+                            phone: root.phone;
+                            file-name: "ShadowPlay_Clip_01.mp4 (02:45)";
+                            ready: false;
+                            vertical-stretch: 1;
+                        }
+                        Divider { }
+                        clip-ready := ClipRow {
+                            width: root.page-width;
+                            phone: root.phone;
+                            file-name: "Aces_Round_5.mp4 (00:30)";
+                            ready: true;
+                            vertical-stretch: 1;
+                        }
+                    }
+                }
+                Rectangle { height: 14px; }
+
+                SettingColumn {
+                    width: root.page-width;
+                    title: "CODEC";
+
+                    codec-bar := SegmentedBar {
+                        vertical: root.phone;
+                        options: ["Quality (AV1)", "Compatibility (H.264)"];
+                        selected: root.codec;
+                        selected-changed(index) => { root.codec = index; }
+                    }
+                }
+                Rectangle { height: 14px; }
+
+                FlexboxLayout {
+                    width: root.page-width;
+                    flex-direction: root.tablet ? column : row;
+                    flex-wrap: no-wrap;
+                    spacing: 22px;
+
+                    SettingColumn {
+                        width: root.setting-width;
+                        title: "TARGET SIZE";
+
+                        size-bar := SegmentedBar {
+                            vertical: root.phone;
+                            options: ["20 MB", "25 MB", "64 MB", "Custom"];
+                            selected: root.size;
+                            selected-changed(index) => { root.size = index; }
+                        }
+
+                        Reveal {
+                            shown: root.size == 3;
+
+                            InlineLabel { text: "Size:"; }
+                            size-input := NumberField {
+                                value <=> root.custom-size;
+                            }
+                            InlineLabel { text: "MB"; }
+                            Rectangle { horizontal-stretch: 1; }
+                        }
+                    }
+
+                    SettingColumn {
+                        width: root.setting-width;
+                        title: "RESOLUTION";
+
+                        resolution-bar := SegmentedBar {
+                            vertical: root.phone;
+                            options: ["480p", "720p", "1080p", "Custom"];
+                            selected: root.resolution;
+                            selected-changed(index) => { root.resolution = index; }
+                        }
+
+                        Reveal {
+                            shown: root.resolution == 3;
+
+                            InlineLabel { text: "Size:"; }
+                            custom-width := NumberField {
+                                field-width: 54px;
+                                value <=> root.custom-width;
+                            }
+                            InlineLabel { text: "×"; }
+                            custom-height := NumberField {
+                                field-width: 54px;
+                                value <=> root.custom-height;
+                            }
+                            InlineLabel { text: "px"; }
+                            Rectangle { horizontal-stretch: 1; }
+                        }
+                    }
+                }
+                Rectangle { height: 17px; }
+
+                SectionLabel {
+                    text: "AUDIO";
+                }
+                Rectangle { height: 8.8px; }
+
+                Rectangle {
+                    background: Theme.card-bg;
+                    border-radius: 7px;
+                    vertical-stretch: 0;
+                    clip: true;
+
+                    VerticalLayout {
+                        spacing: 0px;
+
+                        track-game := AudioTrackRow {
+                            width: root.page-width;
+                            compact: root.tablet;
+                            track-number: 1;
+                            track-name: "Game audio";
+                            track-format: "AAC · Stereo · 48 kHz";
+                            enabled <=> root.track-game;
+                        }
+                        Divider { }
+                        track-mic := AudioTrackRow {
+                            width: root.page-width;
+                            compact: root.tablet;
+                            track-number: 2;
+                            track-name: "Microphone";
+                            track-format: "AAC · Mono · 48 kHz";
+                            enabled <=> root.track-mic;
+                        }
+                        Divider { }
+                        track-party := AudioTrackRow {
+                            width: root.page-width;
+                            compact: root.tablet;
+                            track-number: 3;
+                            track-name: "Party chat";
+                            track-format: "Opus · Stereo · 48 kHz";
+                            enabled <=> root.track-party;
+                        }
+                    }
+                }
+
+                Rectangle { min-height: root.tablet ? 20px : 0px; vertical-stretch: 1; }
+
+                FlexboxLayout {
+                    width: root.page-width;
+                    flex-direction: root.tablet ? column : row;
+                    flex-wrap: no-wrap;
+                    alignment: end;
+                    spacing: 15px;
+
+                    start-button := Rectangle {
+                        width: root.tablet ? root.page-width : Math.max(205px, compression-label.preferred-width + 24px);
+                        height: Math.max(35px, compression-label.preferred-height + 12px);
+                        border-radius: 6.2px;
+                        background: start-touch.has-hover ? Theme.accent-hover : Theme.accent;
+
+                        compression-label := Text {
+                            text: "START COMPRESSION";
+                            color: Theme.text-on-accent;
+                            font-size: 13px;
+                            font-weight: 600;
+                            letter-spacing: 0.6px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        start-touch := TouchArea {
+                            mouse-cursor: pointer;
+                        }
+                    }
+
+                    VerticalLayout {
+                        width: root.tablet ? root.page-width : copy-on-finish.label-width + 25.4px;
+                        alignment: center;
+                        copy-on-finish := CheckItem {
+                            width: parent.width;
+                            label: "Copy to clipboard on finish";
+                            checked <=> root.copy-on-finish;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

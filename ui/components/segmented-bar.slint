@@ -1,0 +1,104 @@
+import { Theme } from "../theme.slint";
+
+component SegmentedOption inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+
+    min-width: 0px;
+    preferred-width: 0px;
+
+    Text {
+        x: 6px;
+        width: parent.width - 12px;
+        text: root.label;
+        color: root.selected ? Theme.text : Theme.text-dim;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+
+        animate color { duration: 160ms; }
+    }
+}
+
+export component SegmentedBar inherits Rectangle {
+    in property <[string]> options;
+    in property <int> selected;
+    in property <bool> vertical;
+    callback selected-changed(int);
+
+    height: root.vertical ? root.options.length * 43px : 43px;
+    background: Theme.segment-bg;
+    border-radius: 6.9px;
+
+    property <int> option-at-pointer: Math.max(0, Math.min(root.options.length - 1, Math.floor(root.vertical ? touch.mouse-y / root.cell-height : touch.mouse-x / root.cell-width)));
+
+    property <length> cell-width: root.vertical ? root.width : root.width / root.options.length;
+    property <length> cell-height: root.vertical ? 43px : root.height;
+
+    property <int> pill-index: 0;
+
+    init => {
+        if (root.selected >= 0) {
+            root.pill-index = root.selected;
+        }
+    }
+
+    changed selected => {
+        if (root.selected >= 0) {
+            root.pill-index = root.selected;
+        }
+    }
+
+    for option[i] in root.options : Rectangle {
+        x: root.vertical ? 0px : i * root.cell-width;
+        y: root.vertical ? i * root.cell-height : 0px;
+        width: root.cell-width;
+        height: root.cell-height;
+
+        Rectangle {
+            x: 3px;
+            y: 3px;
+            width: parent.width - 6px;
+            height: parent.height - 6px;
+            border-radius: Theme.radius-pill;
+            background: Theme.segment-hover;
+            visible: touch.has-hover && i == root.option-at-pointer && i != root.selected;
+        }
+    }
+
+    Rectangle {
+        x: root.vertical ? 3px : root.cell-width * root.pill-index + 3px;
+        y: root.vertical ? root.cell-height * root.pill-index + 3px : 3px;
+        width: root.cell-width - 6px;
+        height: root.cell-height - 6px;
+        border-radius: Theme.radius-pill;
+        background: Theme.segment-selected;
+        opacity: root.selected >= 0 ? 1 : 0;
+
+        animate x { duration: 220ms; easing: ease-out; }
+        animate y { duration: 220ms; easing: ease-out; }
+        animate opacity { duration: 160ms; easing: ease-out; }
+    }
+
+    for option[i] in root.options : SegmentedOption {
+        x: root.vertical ? 0px : i * root.cell-width;
+        y: root.vertical ? i * root.cell-height : 0px;
+        width: root.cell-width;
+        height: root.cell-height;
+        label: option;
+        selected: i == root.selected;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: touch.pressed ? grabbing : pointer;
+        clicked => {
+            root.selected-changed(root.option-at-pointer);
+        }
+        moved => {
+            if (touch.pressed) {
+                root.selected-changed(root.option-at-pointer);
+            }
+        }
+    }
+}
