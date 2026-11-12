@@ -4,6 +4,7 @@ import { Divider } from "components/primitives.slint";
 import { DropTarget } from "components/drop-target.slint";
 import { ClipRow } from "components/clip-row.slint";
 import { SegmentedBar } from "components/segmented-bar.slint";
+import { SharingPlatform } from "components/platform-icon.slint";
 import { CheckItem } from "components/check-box.slint";
 import { AudioTrackRow } from "components/audio-track-row.slint";
 import { SectionLabel, SettingColumn, InlineLabel, NumberField, Reveal } from "components/setting-controls.slint";
@@ -132,6 +133,7 @@ export component AppWindow inherits Window {
                         size-bar := SegmentedBar {
                             vertical: root.phone;
                             options: ["20 MB", "25 MB", "64 MB", "Custom"];
+                            icons: [SharingPlatform.discord, SharingPlatform.gmail, SharingPlatform.whatsapp, SharingPlatform.none];
                             selected: root.size;
                             selected-changed(index) => { root.size = index; }
                         }

@@ -1,0 +1,19 @@
+export enum SharingPlatform {
+    none,
+    discord,
+    gmail,
+    whatsapp,
+}
+
+export component PlatformIcon inherits Image {
+    in property <SharingPlatform> platform;
+    in property <color> color;
+
+    image-fit: contain;
+    image-rendering: smooth;
+    colorize: root.color;
+    source: root.platform == SharingPlatform.discord ? @image-url("../icons/discord.svg")
+        : root.platform == SharingPlatform.gmail ? @image-url("../icons/gmail.svg")
+        : root.platform == SharingPlatform.whatsapp ? @image-url("../icons/whatsapp.svg")
+        : @image-url("");
+}

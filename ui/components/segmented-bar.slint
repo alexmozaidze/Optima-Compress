@@ -1,28 +1,51 @@
 import { Theme } from "../theme.slint";
+import { SharingPlatform, PlatformIcon } from "platform-icon.slint";
 
 component SegmentedOption inherits Rectangle {
     in property <string> label;
+    in property <SharingPlatform> icon;
     in property <bool> selected;
 
     min-width: 0px;
     preferred-width: 0px;
 
-    Text {
-        x: 6px;
-        width: parent.width - 12px;
-        text: root.label;
-        color: root.selected ? Theme.text : Theme.text-dim;
-        font-size: 13px;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-        overflow: elide;
+    HorizontalLayout {
+        padding-left: 6px;
+        padding-right: 6px;
+        spacing: 6px;
+        alignment: center;
 
-        animate color { duration: 160ms; }
+        if root.icon != SharingPlatform.none : VerticalLayout {
+            alignment: center;
+
+            PlatformIcon {
+                width: 18px;
+                height: 18px;
+                platform: root.icon;
+                color: root.selected ? Theme.text : Theme.text-dim;
+
+                animate color { duration: 160ms; }
+            }
+        }
+
+        Text {
+            min-width: 0px;
+            horizontal-stretch: 0;
+            text: root.label;
+            color: root.selected ? Theme.text : Theme.text-dim;
+            font-size: 13px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+
+            animate color { duration: 160ms; }
+        }
     }
 }
 
 export component SegmentedBar inherits Rectangle {
     in property <[string]> options;
+    in property <[SharingPlatform]> icons;
     in property <int> selected;
     in property <bool> vertical;
     callback selected-changed(int);
@@ -87,6 +110,7 @@ export component SegmentedBar inherits Rectangle {
         width: root.cell-width;
         height: root.cell-height;
         label: option;
+        icon: i < root.icons.length ? root.icons[i] : SharingPlatform.none;
         selected: i == root.selected;
     }
 
