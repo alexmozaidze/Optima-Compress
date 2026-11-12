@@ -1,126 +1,205 @@
 import { Theme } from "../theme.slint";
-import { Tick } from "primitives.slint";
-
-component PlayBadge inherits Rectangle {
-    width: 48px;
-    height: 48px;
-    border-radius: 24px;
-    background: Theme.window-bg;
-
-    Path {
-        x: (parent.width - 13px) / 2 + 1.5px;
-        y: (parent.height - 15px) / 2;
-        width: 13px;
-        height: 15px;
-        viewbox-width: 17;
-        viewbox-height: 19;
-        commands: "M 0 0 L 17 9.5 L 0 19 Z";
-        fill: Theme.text;
-    }
-}
+import { ClipState } from "../clip-model.slint";
 
 component VideoThumb inherits Rectangle {
-    border-radius: 4.6px;
-    clip: true;
-    background: @linear-gradient(150deg, Theme.outline 0%, Theme.card-bg 55%, Theme.window-bg 100%);
+    in property <ClipState> state: ClipState.waiting;
 
-    Rectangle {
-        y: parent.height * 0.45;
-        height: parent.height * 0.55;
-        background: @linear-gradient(180deg, Theme.window-bg.with-alpha(0) 0%, Theme.window-bg.with-alpha(0.6) 100%);
-    }
-    PlayBadge {
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+    border-radius: 8px;
+    background: Theme.window-bg;
+
+    Image {
+        width: 32px;
+        height: 32px;
+        source: root.state == ClipState.compressing ? @image-url("../icons/progress-circle.svg")
+            : @image-url("../icons/play-circle.svg");
+        image-rendering: smooth;
+        colorize: root.state == ClipState.finished ? Theme.success
+            : root.state == ClipState.compressing ? Theme.accent : Theme.text;
     }
 }
 
-component Badge inherits Rectangle {
-    in property <string> label;
-    in property <bool> ready;
+component EncodingSummary inherits HorizontalLayout {
+    in property <string> codec;
+    in property <string> resolution;
+    in property <string> target-size;
 
-    height: Math.max(25px, badge-text.preferred-height + 6px);
-    border-radius: Theme.radius-control;
-    background: ready ? Theme.badge-ready-bg : Theme.badge-pending-bg;
-    width: badge-text.preferred-width + (ready ? 50px : 42px);
+    min-width: 0px;
+    spacing: 14px;
 
-    badge-text := Text {
-        x: 9.7px;
-        y: 0;
-        height: parent.height;
-        text: root.label;
-        color: root.ready ? Theme.badge-ready-text : Theme.badge-pending-text;
-        font-size: 13px;
-        vertical-alignment: center;
+    VerticalLayout {
+        alignment: center;
+        horizontal-stretch: 0;
+
+        Image {
+            width: 20px;
+            height: 20px;
+            source: @image-url("../icons/arrow-right.svg");
+            image-rendering: smooth;
+            colorize: Theme.text-dim;
+        }
     }
+    VerticalLayout {
+        min-width: 0px;
+        preferred-width: 0px;
+        horizontal-stretch: 1;
+        alignment: center;
+        spacing: 4px;
 
-    if ready : Rectangle {
-        x: parent.width - 26px;
-        y: (parent.height - self.height) / 2;
-        width: 12px;
-        height: 12px;
-        border-radius: 2.3px;
-        background: Theme.success;
-
-        Tick { }
-    }
-
-    if !ready : Path {
-        x: parent.width - 20px;
-        y: (parent.height - self.height) / 2;
-        width: 8.4px;
-        height: 11px;
-        viewbox-width: 11;
-        viewbox-height: 14;
-        commands: "M 0 0 L 11 0 L 5.5 6.2 L 11 14 L 0 14 L 5.5 6.2 Z";
-        fill: Theme.badge-pending-text;
+        Text {
+            text: root.codec + " · " + root.resolution;
+            color: Theme.text;
+            font-size: 14px;
+            font-weight: 600;
+            wrap: word-wrap;
+        }
+        Text {
+            text: root.target-size + " target";
+            color: Theme.text-dim;
+            font-size: 12px;
+            wrap: word-wrap;
+        }
     }
 }
 
 export component ClipRow inherits Rectangle {
     in property <string> file-name;
-    in property <bool> ready;
+    in property <string> metadata;
+    in property <string> encoding-codec;
+    in property <string> encoding-resolution;
+    in property <string> encoding-size;
+    in property <ClipState> state: ClipState.waiting;
+    in property <float> progress: 0;
     in property <bool> phone;
+    in property <bool> selected;
 
-    FlexboxLayout {
+    accessible-role: list-item;
+    accessible-label: root.file-name;
+    accessible-item-selected: root.selected;
+
+    property <float> bounded-progress: Math.max(0, Math.min(1, root.progress));
+    property <color> status-color: root.state == ClipState.finished ? Theme.success
+        : root.state == ClipState.compressing ? Theme.accent : Theme.text-dim;
+
+    background: Theme.card-bg;
+    border-radius: 7.7px;
+    clip: true;
+
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width * (root.state == ClipState.finished ? 1 : root.bounded-progress);
+        height: root.height;
+        visible: root.state != ClipState.waiting;
+        background: root.state == ClipState.finished ? Theme.success.with-alpha(0.12) : Theme.accent.with-alpha(0.20);
+        border-radius: root.border-radius;
+        border-top-right-radius: root.state == ClipState.finished || root.bounded-progress >= 1 ? root.border-radius : 0px;
+        border-bottom-right-radius: self.border-top-right-radius;
+    }
+
+    HorizontalLayout {
         min-width: 0px;
-        preferred-width: 0px;
-        flex-direction: root.phone ? column : row;
-        flex-wrap: no-wrap;
-        cross-axis-alignment: root.phone ? center : stretch;
         padding-left: 14px;
         padding-right: 14px;
-        padding-top: 12px;
-        padding-bottom: 12px;
-        spacing: 17px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        spacing: 12px;
 
         VerticalLayout {
             alignment: center;
+
             VideoThumb {
-                width: 114px;
-                height: 64px;
+                width: root.phone ? 80px : 112px;
+                height: self.width * 9 / 16;
+                state: root.state;
             }
         }
-        Text {
-            width: root.phone ? root.width - 28px : Math.max(0px, root.width - 176px - status-badge.width);
-            height: self.preferred-height;
-            cross-axis-self-alignment: center;
-            text: root.file-name;
-            color: Theme.text;
-            font-size: 16px;
-            font-weight: 600;
-            wrap: char-wrap;
-            horizontal-alignment: root.phone ? center : left;
-            vertical-alignment: center;
+        details := VerticalLayout {
+            min-width: 0px;
+            preferred-width: 0px;
             horizontal-stretch: 1;
+            alignment: center;
+            spacing: 4px;
+
+            Text {
+                height: self.preferred-height;
+                text: root.file-name;
+                color: Theme.text;
+                font-size: 16px;
+                font-weight: 600;
+                overflow: elide;
+            }
+            Text {
+                height: self.preferred-height;
+                text: root.metadata;
+                color: Theme.text-dim;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                spacing: 7px;
+
+                if root.state != ClipState.compressing : VerticalLayout {
+                    alignment: center;
+
+                    Image {
+                        width: 12px;
+                        height: 12px;
+                        source: root.state == ClipState.finished ? @image-url("../icons/check-circle.svg")
+                            : @image-url("../icons/clock.svg");
+                        image-rendering: smooth;
+                        colorize: root.status-color;
+                    }
+                }
+                Text {
+                    preferred-width: 0px;
+                    horizontal-stretch: 1;
+                    text: root.state == ClipState.finished ? "Ready to copy"
+                        : root.state == ClipState.compressing ? "Compressing · " + Math.round(root.bounded-progress * 100) + "%"
+                        : "Waiting for compression";
+                    color: root.status-color;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                }
+            }
+
+            if root.phone : EncodingSummary {
+                codec: root.encoding-codec;
+                resolution: root.encoding-resolution;
+                target-size: root.encoding-size;
+            }
+        }
+        if !root.phone : EncodingSummary {
+            preferred-width: 0px;
+            horizontal-stretch: 1;
+            codec: root.encoding-codec;
+            resolution: root.encoding-resolution;
+            target-size: root.encoding-size;
         }
         VerticalLayout {
             alignment: center;
             horizontal-stretch: 0;
-            status-badge := Badge {
-                label: root.ready ? "Click to Copy" : "Pending";
-                ready: root.ready;
+
+            Rectangle {
+                width: 24px;
+                height: 24px;
+
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    source: @image-url("../icons/more.svg");
+                    image-rendering: smooth;
+                    colorize: Theme.text;
+                }
             }
         }
+    }
+
+    if root.selected : Rectangle {
+        width: root.width;
+        height: root.height;
+        border-radius: root.border-radius;
+        border-width: 2px;
+        border-color: Theme.accent;
+        background: Theme.accent.with-alpha(0.05);
     }
 }

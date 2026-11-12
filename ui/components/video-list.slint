@@ -1,0 +1,187 @@
+import { Theme } from "../theme.slint";
+import { ClipData, EncodingOptions, EncodingField, SelectionRequest, SelectionOperation } from "../clip-model.slint";
+import { SelectableClip } from "selectable-clip.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export component VideoList inherits Rectangle {
+    in-out property <[ClipData]> clips;
+    in property <bool> phone;
+    in property <length> bottom-inset;
+    out property <bool> selecting;
+    out property <int> selected-count;
+    out property <bool> mixed-options;
+    callback selection-changed(EncodingOptions);
+
+    property <bool> marquee-active;
+    property <int> anchor: -1;
+    property <SelectionRequest> request;
+    property <int> request-revision;
+    property <int> reported-count;
+    property <int> pending-selected-count;
+    property <int> first-selected: -1;
+    property <bool> pending-mixed;
+    property <EncodingOptions> pending-options;
+
+    function dispatch() {
+        root.reported-count = 0;
+        root.pending-selected-count = 0;
+        root.first-selected = -1;
+        root.pending-mixed = false;
+        root.request-revision += 1;
+        if root.clips.length == 0 {
+            root.selected-count = 0;
+            root.mixed-options = false;
+        }
+    }
+
+    function report-row(index: int, selected: bool, options: EncodingOptions) {
+        if selected {
+            if root.pending-selected-count > 0 && options != root.pending-options { root.pending-mixed = true; }
+            if root.first-selected < 0 || index < root.first-selected {
+                root.first-selected = index;
+                root.pending-options = options;
+            }
+            root.pending-selected-count += 1;
+        }
+        root.reported-count += 1;
+        if root.reported-count == root.clips.length {
+            root.selected-count = root.pending-selected-count;
+            root.mixed-options = root.pending-mixed;
+            root.selection-changed(root.pending-options);
+        }
+    }
+
+    function begin-selection(index: int, position: Point, modifiers: KeyboardModifiers) {
+        list-focus.focus();
+        root.selecting = true;
+        root.marquee-active = false;
+        root.request.gesture += 1;
+        root.request.operation = SelectionOperation.click;
+        root.request.index = index;
+        root.request.anchor = root.anchor < 0 ? index : root.anchor;
+        root.request.control = modifiers.control;
+        root.request.shift = modifiers.shift;
+        root.request.origin = position;
+        root.request.position = position;
+        if index >= 0 && !modifiers.shift { root.anchor = index; }
+        if index >= 0 && root.anchor < 0 { root.anchor = index; }
+        if index < 0 && !modifiers.control && !modifiers.shift { root.anchor = -1; }
+        root.dispatch();
+    }
+
+    function move-selection(position: Point) {
+        if !root.selecting { return; }
+        root.request.position = position;
+        if root.marquee-active || Math.abs(position.x - root.request.origin.x) > 4px || Math.abs(position.y - root.request.origin.y) > 4px {
+            root.marquee-active = true;
+            root.request.operation = SelectionOperation.box;
+            root.dispatch();
+        }
+    }
+
+    function finish-selection() {
+        root.selecting = false;
+        root.marquee-active = false;
+    }
+
+    function cancel-selection() {
+        root.finish-selection();
+        root.request.operation = SelectionOperation.cancel;
+        root.dispatch();
+    }
+
+    public function clear-selection() {
+        root.anchor = -1;
+        root.request.operation = SelectionOperation.clear;
+        root.dispatch();
+    }
+
+    public function edit-options(field: EncodingField, options: EncodingOptions) {
+        root.request.operation = SelectionOperation.edit;
+        root.request.field = field;
+        root.request.options = options;
+        root.dispatch();
+    }
+
+    list-focus := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.clear-selection();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    list-scroll := ScrollView {
+        width: root.width;
+        height: root.height;
+        horizontal-scrollbar-policy: always-off;
+        mouse-drag-pan-enabled: false;
+        content-width: self.visible-width;
+        content-height: Math.max(self.visible-height, list-rows.min-height + 28px + root.bottom-inset);
+
+        list-surface := Rectangle {
+            width: list-scroll.visible-width;
+            height: list-scroll.content-height;
+
+            selection-touch := TouchArea {
+                pointer-event(event) => {
+                    if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                        root.begin-selection(-1, { x: self.mouse-x, y: self.mouse-y }, event.modifiers);
+                    }
+                    if event.kind == PointerEventKind.up && event.button == PointerEventButton.left { root.finish-selection(); }
+                    if event.kind == PointerEventKind.cancel { root.cancel-selection(); }
+                }
+                moved => { root.move-selection({ x: self.mouse-x, y: self.mouse-y }); }
+            }
+
+            list-rows := VerticalLayout {
+                x: 21px;
+                y: 14px;
+                width: list-surface.width - 42px;
+                height: self.min-height;
+                spacing: 8px;
+
+                for clip[index] in root.clips : SelectableClip {
+                    width: list-rows.width;
+                    index: index;
+                    list-offset: { x: list-rows.x, y: list-rows.y };
+                    phone: root.phone;
+                    file-name: clip.file-name;
+                    metadata: clip.metadata;
+                    state: clip.state;
+                    progress: clip.progress;
+                    selected: clip.selected;
+                    options: clip.options;
+                    request: root.request;
+                    request-revision: root.request-revision;
+                    encoding-codec: clip.options.codec == 0 ? "AV1" : "H.264";
+                    encoding-resolution: clip.options.resolution == 3 ? clip.options.custom-width + " × " + clip.options.custom-height
+                        : ["480p", "720p", "1080p"][clip.options.resolution];
+                    encoding-size: clip.options.size == 3 ? clip.options.custom-size + " MB"
+                        : ["20 MB", "25 MB", "64 MB"][clip.options.size];
+                    pointer-pressed(index, position, modifiers) => { root.begin-selection(index, position, modifiers); }
+                    pointer-moved(position) => { root.move-selection(position); }
+                    pointer-released => { root.finish-selection(); }
+                    pointer-cancelled => { root.cancel-selection(); }
+                    row-updated(index, selected, options) => {
+                        clip.selected = selected;
+                        clip.options = options;
+                        root.report-row(index, selected, options);
+                    }
+                }
+            }
+
+            if root.marquee-active && root.selecting : Rectangle {
+                x: Math.min(root.request.origin.x, root.request.position.x);
+                y: Math.min(root.request.origin.y, root.request.position.y);
+                width: Math.abs(root.request.position.x - root.request.origin.x);
+                height: Math.abs(root.request.position.y - root.request.origin.y);
+                background: Theme.accent.with-alpha(0.15);
+                border-width: 1px;
+                border-color: Theme.accent;
+            }
+        }
+    }
+}

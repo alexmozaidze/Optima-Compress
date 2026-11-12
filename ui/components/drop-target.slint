@@ -1,50 +1,31 @@
 import { Theme } from "../theme.slint";
 
-component DashedFrame inherits Rectangle {
-    in property <color> line-color: Theme.outline;
+export component DropTarget inherits DropArea {
+    callback files-dropped(data-transfer);
 
-    for i in 44 : Rectangle {
-        x: i * (root.width / 44);
-        y: 0;
-        width: root.width / 80;
-        height: 1px;
-        background: root.line-color;
+    can-drop(event) => { DragAction.copy }
+    dropped(event) => {
+        root.files-dropped(event.data);
+        return DragAction.copy;
     }
-    for i in 44 : Rectangle {
-        x: i * (root.width / 44) + root.width / 80;
-        y: root.height - 1px;
-        width: root.width / 80;
-        height: 1px;
-        background: root.line-color;
-    }
-    for i in 10 : Rectangle {
-        x: 0;
-        y: i * (root.height / 10);
-        width: 1px;
-        height: root.height / 20;
-        background: root.line-color;
-    }
-    for i in 10 : Rectangle {
-        x: root.width - 1px;
-        y: i * (root.height / 10) + root.height / 20;
-        width: 1px;
-        height: root.height / 20;
-        background: root.line-color;
-    }
-}
 
-export component DropTarget inherits Rectangle {
-    out property <length> preferred-content-height: drop-label.preferred-height + 24px;
+    if root.has-drag : Rectangle {
+        width: root.width;
+        height: root.height;
+        background: Theme.window-bg.with-alpha(0.92);
+        border-width: 2px;
+        border-color: Theme.accent;
 
-    DashedFrame { }
-    drop-label := Text {
-        x: 12px;
-        width: parent.width - 24px;
-        text: "Drag and drop video files here, or click to browse";
-        color: Theme.text-dim;
-        font-size: 15px;
-        wrap: word-wrap;
-        horizontal-alignment: center;
-        vertical-alignment: center;
+        Text {
+            x: 21px;
+            width: parent.width - 42px;
+            text: "Drop video files to add them";
+            color: Theme.accent;
+            font-size: 20px;
+            font-weight: 600;
+            wrap: word-wrap;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
     }
 }

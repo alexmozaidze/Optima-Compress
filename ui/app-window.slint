@@ -1,29 +1,26 @@
 import { Theme } from "theme.slint";
-import { ScrollView } from "std-widgets.slint";
-import { ClickFocusArea, Divider } from "components/primitives.slint";
+import { ClipData, ClipState, EncodingOptions, EncodingField } from "clip-model.slint";
 import { DropTarget } from "components/drop-target.slint";
-import { ClipRow } from "components/clip-row.slint";
-import { SegmentedBar } from "components/segmented-bar.slint";
-import { SharingPlatform } from "components/platform-icon.slint";
-import { AudioTrackRow } from "components/audio-track-row.slint";
-import { SectionLabel, SettingColumn, InlineLabel, AttachedDetailBackground, InputGroup, NumberField, Reveal } from "components/setting-controls.slint";
+import { VideoList } from "components/video-list.slint";
+import { SelectionSettings } from "components/selection-settings.slint";
 
 export component AppWindow inherits Window {
-    in-out property <int> counter: 42;
-    callback request-increase-value();
+    callback files-dropped(data-transfer);
 
     title: "QuickClip Compress";
     background: Theme.window-bg;
     preferred-width: 1141px;
     preferred-height: 762px;
     min-width: 320px;
+    min-height: 400px;
     default-font-family: "Open Sans";
+    default-font-size: 13px;
 
-    property <bool> tablet: root.width < 800px * (compression-label.font-size / 13px);
-    property <bool> phone: root.width < 480px * (compression-label.font-size / 13px);
-    property <length> page-width: settings-scroll.visible-width - 42px;
-    property <length> setting-width: root.tablet ? root.page-width : (root.page-width - 22px) / 2;
+    property <bool> tablet: root.width < 800px * (root.default-font-size / 13px);
+    property <bool> phone: root.width < 480px * (root.default-font-size / 13px);
 
+    out property <int> selected-count: video-list.selected-count;
+    out property <bool> mixed-options: video-list.mixed-options;
     in-out property <int> codec: 1;
     in-out property <int> size: 0;
     in-out property <string> custom-size: "8";
@@ -34,310 +31,106 @@ export component AppWindow inherits Window {
     in-out property <bool> track-mic: true;
     in-out property <bool> track-party: false;
 
-    background-focus := FocusScope {
-        focus-on-tab-navigation: false;
+    out property <EncodingOptions> default-options: {
+        codec: 1, size: 0, custom-size: "8", resolution: 1,
+        custom-width: "1920", custom-height: "1080",
+        track-game: true, track-mic: true, track-party: false,
+    };
+
+    in-out property <[ClipData]> clips: [
+        {
+            file-name: "ShadowPlay_Clip_01.mp4", source-path: "",
+            metadata: "2:45 · 1080p · 142 MB", state: ClipState.waiting,
+            progress: 0, selected: false, options: root.default-options,
+        },
+        {
+            file-name: "Ranked_Highlights.mp4", source-path: "",
+            metadata: "1:12 · 1080p · 86 MB", state: ClipState.compressing,
+            progress: 0.58, selected: false, options: root.default-options,
+        },
+        {
+            file-name: "Aces_Round_5.mp4", source-path: "",
+            metadata: "0:30 · 720p · 18 MB", state: ClipState.finished,
+            progress: 1, selected: false, options: root.default-options,
+        },
+    ];
+
+    header := Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: Math.max(26px, window-title.preferred-height + 10px);
+        background: Theme.header-bg;
+
+        window-title := Text {
+            text: "QuickClip Compress";
+            color: Theme.text;
+            font-size: 11px;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        Rectangle {
+            y: parent.height - 1px;
+            height: 1px;
+            background: Theme.divider;
+        }
     }
 
-    VerticalLayout {
-        spacing: 0px;
-
-        Rectangle {
-            height: Math.max(26px, window-title.preferred-height + 10px);
-            background: Theme.header-bg;
-
-            window-title := Text {
-                text: "QuickClip Compress";
-                color: Theme.text;
-                font-size: 11px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-            Rectangle {
-                y: parent.height - 1px;
-                height: 1px;
-                background: Theme.divider;
-            }
+    video-list := VideoList {
+        x: 0px;
+        y: header.height;
+        width: root.width;
+        height: root.height - header.height;
+        clips <=> root.clips;
+        phone: root.phone;
+        bottom-inset: root.selected-count > 0 || video-list.selecting ? settings-panel.height + 24px : 0px;
+        selection-changed(options) => {
+            if root.selected-count == 0 { return; }
+            root.codec = options.codec;
+            root.size = options.size;
+            root.custom-size = options.custom-size;
+            root.resolution = options.resolution;
+            root.custom-width = options.custom-width;
+            root.custom-height = options.custom-height;
+            root.track-game = options.track-game;
+            root.track-mic = options.track-mic;
+            root.track-party = options.track-party;
         }
+    }
 
-        Rectangle {
-            min-height: 340px;
-            preferred-height: 340px;
-            vertical-stretch: 1;
-
-            video-scroll := ScrollView {
-                width: 100%;
-                height: 100%;
-                horizontal-scrollbar-policy: always-off;
-                content-width: self.visible-width;
-                content-height: Math.max(self.visible-height, video-content.min-height);
-
-                video-focus := FocusScope {
-                    width: video-content.width;
-                    height: video-scroll.content-height;
-                    focus-on-tab-navigation: false;
-                }
-
-                video-content := VerticalLayout {
-                    y: 0px;
-                    min-width: 0px;
-                    width: video-scroll.visible-width;
-                    height: self.min-height;
-                    padding-left: 21px;
-                    padding-right: 21px;
-                    padding-top: 14px;
-                    padding-bottom: 14px;
-                    spacing: 0px;
-
-                    dropzone := DropTarget {
-                        width: root.page-width;
-                        height: Math.max(95px, self.preferred-content-height);
-                    }
-                    Rectangle { height: 20px; }
-
-                    Rectangle {
-                        width: root.page-width;
-                        min-height: Math.max(root.phone ? 0px : 182px, clip-pending.min-height + clip-ready.min-height + 1px);
-                        vertical-stretch: 0;
-                        background: Theme.card-bg;
-                        border-radius: 7.7px;
-
-                        VerticalLayout {
-                            spacing: 0px;
-
-                            clip-pending := ClipRow {
-                                width: root.page-width;
-                                phone: root.phone;
-                                file-name: "ShadowPlay_Clip_01.mp4 (02:45)";
-                                ready: false;
-                                vertical-stretch: 1;
-                            }
-                            Divider { }
-                            clip-ready := ClipRow {
-                                width: root.page-width;
-                                phone: root.phone;
-                                file-name: "Aces_Round_5.mp4 (00:30)";
-                                ready: true;
-                                vertical-stretch: 1;
-                            }
-                        }
-                    }
-                }
-            }
+    settings-panel := SelectionSettings {
+        x: root.phone ? 8px : 21px;
+        y: root.height - self.height - 12px;
+        width: root.width - 2 * self.x;
+        height: Math.min(self.preferred-height, (root.height - header.height) * 0.55);
+        visible: root.selected-count > 0 && !video-list.selecting;
+        selected-count: root.selected-count;
+        mixed-options: root.mixed-options;
+        tablet: root.tablet;
+        phone: root.phone;
+        codec <=> root.codec;
+        size <=> root.size;
+        custom-size <=> root.custom-size;
+        resolution <=> root.resolution;
+        custom-width <=> root.custom-width;
+        custom-height <=> root.custom-height;
+        track-game <=> root.track-game;
+        track-mic <=> root.track-mic;
+        track-party <=> root.track-party;
+        option-edited(field) => {
+            video-list.edit-options(field, {
+                codec: root.codec, size: root.size, custom-size: root.custom-size,
+                resolution: root.resolution, custom-width: root.custom-width, custom-height: root.custom-height,
+                track-game: root.track-game, track-mic: root.track-mic, track-party: root.track-party,
+            });
         }
+        clear-selection => { video-list.clear-selection(); }
+    }
 
-        Rectangle { height: 1px; background: Theme.outline.with-alpha(0.35); }
-
-        settings-scroll := ScrollView {
-            preferred-height: settings-content.min-height;
-            vertical-stretch: 0;
-            horizontal-scrollbar-policy: always-off;
-            content-width: self.visible-width;
-            content-height: Math.max(self.visible-height, settings-content.min-height);
-
-            settings-focus := FocusScope {
-                width: settings-content.width;
-                height: settings-scroll.content-height;
-                focus-on-tab-navigation: false;
-            }
-
-            settings-content := VerticalLayout {
-                min-width: 0px;
-                width: settings-scroll.visible-width;
-                padding-left: 21px;
-                padding-right: 21px;
-                padding-top: 14px;
-                padding-bottom: 20px;
-                spacing: 0px;
-
-                SettingColumn {
-                    width: root.page-width;
-                    title: "CODEC";
-
-                    codec-bar := SegmentedBar {
-                        vertical: root.phone;
-                        options: ["Quality (AV1)", "Compatibility (H.264)"];
-                        selected: root.codec;
-                        selected-changed(index) => { root.codec = index; }
-                    }
-                }
-                Rectangle { height: 14px; }
-
-                FlexboxLayout {
-                    width: root.page-width;
-                    flex-direction: root.tablet ? column : row;
-                    flex-wrap: no-wrap;
-                    spacing: 22px;
-
-                    SettingColumn {
-                        width: root.setting-width;
-                        title: "TARGET SIZE";
-
-                        Rectangle {
-                            height: size-bar.height + size-reveal.height;
-                            border-radius: Theme.radius-segment;
-                            clip: true;
-
-                            AttachedDetailBackground {
-                                width: parent.width;
-                                height: parent.height;
-                                detail-width: size-fields.width;
-                                header-height: size-bar.height;
-                                visible: size-reveal.height > 0px;
-                            }
-
-                            VerticalLayout {
-                                spacing: 0px;
-
-                                size-bar := SegmentedBar {
-                                    vertical: root.phone;
-                                    attached-detail: root.size == 3;
-                                    options: ["20 MB", "25 MB", "64 MB", "Custom"];
-                                    icons: [SharingPlatform.discord, SharingPlatform.gmail, SharingPlatform.whatsapp, SharingPlatform.none];
-                                    selected: root.size;
-                                    selected-changed(index) => { root.size = index; }
-                                }
-
-                                size-reveal := Reveal {
-                                    shown: root.size == 3;
-
-                                    size-fields := InputGroup {
-                                        focused: size-input.has-focus;
-
-                                        size-input := NumberField {
-                                            value <=> root.custom-size;
-                                            accessible-label: "Target size in megabytes";
-                                        }
-                                        InlineLabel { text: "MB"; }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    SettingColumn {
-                        width: root.setting-width;
-                        title: "RESOLUTION";
-
-                        Rectangle {
-                            height: resolution-bar.height + resolution-reveal.height;
-                            border-radius: Theme.radius-segment;
-                            clip: true;
-
-                            AttachedDetailBackground {
-                                width: parent.width;
-                                height: parent.height;
-                                detail-width: resolution-fields.width;
-                                header-height: resolution-bar.height;
-                                visible: resolution-reveal.height > 0px;
-                            }
-
-                            VerticalLayout {
-                                spacing: 0px;
-
-                                resolution-bar := SegmentedBar {
-                                    vertical: root.phone;
-                                    attached-detail: root.resolution == 3;
-                                    options: ["480p", "720p", "1080p", "Custom"];
-                                    selected: root.resolution;
-                                    selected-changed(index) => { root.resolution = index; }
-                                }
-
-                                resolution-reveal := Reveal {
-                                    shown: root.resolution == 3;
-
-                                    resolution-fields := InputGroup {
-                                        focused: custom-width.has-focus || custom-height.has-focus;
-
-                                        custom-width := NumberField {
-                                            field-width: 54px;
-                                            value <=> root.custom-width;
-                                            accessible-label: "Width in pixels";
-                                        }
-                                        InlineLabel { text: "×"; }
-                                        custom-height := NumberField {
-                                            field-width: 54px;
-                                            value <=> root.custom-height;
-                                            accessible-label: "Height in pixels";
-                                        }
-                                        InlineLabel { text: "px"; }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Rectangle { height: 17px; }
-
-                SectionLabel {
-                    text: "AUDIO";
-                }
-                Rectangle { height: 8.8px; }
-
-                Rectangle {
-                    background: Theme.card-bg;
-                    border-radius: 7px;
-                    vertical-stretch: 0;
-                    clip: true;
-
-                    VerticalLayout {
-                        spacing: 0px;
-
-                        track-game := AudioTrackRow {
-                            width: root.page-width;
-                            compact: root.tablet;
-                            track-number: 1;
-                            track-name: "Game audio";
-                            track-info: "AAC · Stereo · 48 kHz";
-                            enabled <=> root.track-game;
-                        }
-                        Divider { }
-                        track-mic := AudioTrackRow {
-                            width: root.page-width;
-                            compact: root.tablet;
-                            track-number: 2;
-                            track-name: "Microphone";
-                            track-info: "AAC · Mono · 48 kHz";
-                            enabled <=> root.track-mic;
-                        }
-                        Divider { }
-                        track-party := AudioTrackRow {
-                            width: root.page-width;
-                            compact: root.tablet;
-                            track-number: 3;
-                            track-name: "Party chat";
-                            track-info: "Opus · Stereo · 48 kHz";
-                            enabled <=> root.track-party;
-                        }
-                    }
-                }
-
-                HorizontalLayout {
-                    width: root.page-width;
-                    alignment: center;
-
-                    start-button := Rectangle {
-                        width: root.tablet ? root.page-width : Math.max(205px, compression-label.preferred-width + 24px);
-                        height: Math.max(35px, compression-label.preferred-height + 12px);
-                        border-radius: 6.2px;
-                        background: start-touch.has-hover ? Theme.accent-hover : Theme.accent;
-
-                        compression-label := Text {
-                            text: "START COMPRESSION";
-                            color: Theme.text-on-accent;
-                            font-size: 13px;
-                            font-weight: 600;
-                            letter-spacing: 0.6px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-
-                        start-touch := ClickFocusArea {
-                            mouse-cursor: pointer;
-                        }
-                    }
-                }
-            }
-        }
+    window-drop := DropTarget {
+        width: root.width;
+        height: root.height;
+        files-dropped(data) => { root.files-dropped(data); }
     }
 }

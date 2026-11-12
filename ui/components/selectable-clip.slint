@@ -1,0 +1,87 @@
+import { ClipRow } from "clip-row.slint";
+import { EncodingOptions, EncodingField, SelectionRequest, SelectionOperation } from "../clip-model.slint";
+
+export component SelectableClip inherits ClipRow {
+    in property <int> index;
+    in property <Point> list-offset;
+    in property <EncodingOptions> options;
+    in property <SelectionRequest> request;
+    in property <int> request-revision;
+    callback pointer-pressed(int, Point, KeyboardModifiers);
+    callback pointer-moved(Point);
+    callback pointer-released();
+    callback pointer-cancelled();
+    callback row-updated(int, bool, EncodingOptions);
+
+    property <int> saved-gesture: -1;
+    property <bool> previous-selection;
+
+    pure function intersects-box() -> bool {
+        let left = Math.min(root.request.origin.x, root.request.position.x);
+        let right = Math.max(root.request.origin.x, root.request.position.x);
+        let top = Math.min(root.request.origin.y, root.request.position.y);
+        let bottom = Math.max(root.request.origin.y, root.request.position.y);
+        return root.x + root.list-offset.x < right && root.x + root.list-offset.x + root.width > left
+            && root.y + root.list-offset.y < bottom && root.y + root.list-offset.y + root.height > top;
+    }
+
+    pure function next-selection() -> bool {
+        if root.request.operation == SelectionOperation.clear { return false; }
+        if root.request.operation == SelectionOperation.cancel { return root.previous-selection; }
+        if root.request.operation == SelectionOperation.edit { return root.selected; }
+        if root.request.operation == SelectionOperation.box {
+            let hit = root.intersects-box();
+            if root.request.control { return root.previous-selection != hit; }
+            return hit || (root.request.shift && root.previous-selection);
+        }
+        if root.request.index < 0 {
+            return (root.request.control || root.request.shift) && root.previous-selection;
+        }
+        if root.request.shift {
+            let in-range = root.index >= Math.min(root.request.anchor, root.request.index)
+                && root.index <= Math.max(root.request.anchor, root.request.index);
+            return in-range || (root.request.control && root.previous-selection);
+        }
+        if root.request.control {
+            return root.previous-selection != (root.index == root.request.index);
+        }
+        return root.index == root.request.index;
+    }
+
+    pure function edited-options() -> EncodingOptions {
+        return {
+            codec: root.request.field == EncodingField.codec ? root.request.options.codec : root.options.codec,
+            size: root.request.field == EncodingField.size ? root.request.options.size : root.options.size,
+            custom-size: root.request.field == EncodingField.custom-size ? root.request.options.custom-size : root.options.custom-size,
+            resolution: root.request.field == EncodingField.resolution ? root.request.options.resolution : root.options.resolution,
+            custom-width: root.request.field == EncodingField.custom-width ? root.request.options.custom-width : root.options.custom-width,
+            custom-height: root.request.field == EncodingField.custom-height ? root.request.options.custom-height : root.options.custom-height,
+            track-game: root.request.field == EncodingField.track-game ? root.request.options.track-game : root.options.track-game,
+            track-mic: root.request.field == EncodingField.track-mic ? root.request.options.track-mic : root.options.track-mic,
+            track-party: root.request.field == EncodingField.track-party ? root.request.options.track-party : root.options.track-party,
+        };
+    }
+
+    changed request-revision => {
+        if root.saved-gesture != root.request.gesture && root.request.operation != SelectionOperation.edit && root.request.operation != SelectionOperation.clear {
+            root.previous-selection = root.selected;
+            root.saved-gesture = root.request.gesture;
+        }
+        let selected = root.next-selection();
+        let options = root.request.operation == SelectionOperation.edit && selected ? root.edited-options() : root.options;
+        root.row-updated(root.index, selected, options);
+    }
+
+    row-touch := TouchArea {
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                root.pointer-pressed(root.index, { x: root.x + root.list-offset.x + self.mouse-x, y: root.y + root.list-offset.y + self.mouse-y }, event.modifiers);
+            }
+            if event.kind == PointerEventKind.up && event.button == PointerEventButton.left { root.pointer-released(); }
+            if event.kind == PointerEventKind.cancel { root.pointer-cancelled(); }
+        }
+        moved => {
+            root.pointer-moved({ x: root.x + root.list-offset.x + self.mouse-x, y: root.y + root.list-offset.y + self.mouse-y });
+        }
+    }
+}

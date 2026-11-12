@@ -1,0 +1,267 @@
+import { Theme } from "../theme.slint";
+import { EncodingField } from "../clip-model.slint";
+import { ScrollView } from "std-widgets.slint";
+import { ClickFocusArea, Divider } from "primitives.slint";
+import { SegmentedBar } from "segmented-bar.slint";
+import { SharingPlatform } from "platform-icon.slint";
+import { AudioTrackRow } from "audio-track-row.slint";
+import { SectionLabel, SettingColumn, InlineLabel, AttachedDetailBackground, InputGroup, NumberField, Reveal } from "setting-controls.slint";
+
+export component SelectionSettings inherits Rectangle {
+    in property <int> selected-count;
+    in property <bool> mixed-options;
+    in property <bool> tablet;
+    in property <bool> phone;
+    in-out property <int> codec;
+    in-out property <int> size;
+    in-out property <string> custom-size;
+    in-out property <int> resolution;
+    in-out property <string> custom-width;
+    in-out property <string> custom-height;
+    in-out property <bool> track-game;
+    in-out property <bool> track-mic;
+    in-out property <bool> track-party;
+    callback option-edited(EncodingField);
+    callback clear-selection();
+
+    property <length> page-width: settings-scroll.visible-width - 32px;
+    property <length> setting-width: root.tablet ? root.page-width : (root.page-width - 22px) / 2;
+
+    preferred-height: panel-header.min-height + settings-content.min-height + 2px;
+    background: Theme.window-bg;
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: Theme.outline;
+    clip: true;
+
+    panel-touch := ClickFocusArea { }
+
+    VerticalLayout {
+        spacing: 0px;
+
+        panel-header := HorizontalLayout {
+            padding: 16px;
+            spacing: 12px;
+
+            VerticalLayout {
+                min-width: 0px;
+                horizontal-stretch: 1;
+                spacing: 4px;
+
+                Text {
+                    text: root.selected-count == 1 ? "1 video selected" : root.selected-count + " videos selected";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                }
+                Text {
+                    text: root.mixed-options ? "Mixed settings · showing the first video; only edited options are shared" : "Changes apply only to selected videos";
+                    color: Theme.text-dim;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+            }
+            Rectangle {
+                width: clear-label.preferred-width + 12px;
+                height: Math.max(28px, clear-label.preferred-height + 8px);
+                background: clear-touch.has-hover ? Theme.card-bg : transparent;
+                border-radius: Theme.radius-control;
+
+                clear-label := Text {
+                    text: "Clear";
+                    color: Theme.text;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                clear-touch := ClickFocusArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.clear-selection(); }
+                }
+            }
+        }
+        Divider { }
+
+        settings-scroll := ScrollView {
+            horizontal-scrollbar-policy: always-off;
+            content-width: self.visible-width;
+            content-height: Math.max(self.visible-height, settings-content.min-height);
+
+            settings-content := VerticalLayout {
+                min-width: 0px;
+                width: settings-scroll.visible-width;
+                padding: 16px;
+                spacing: 0px;
+
+                SettingColumn {
+                    width: root.page-width;
+                    title: "CODEC";
+
+                    codec-bar := SegmentedBar {
+                        vertical: root.phone;
+                        options: ["Quality (AV1)", "Compatibility (H.264)"];
+                        selected: root.codec;
+                        selected-changed(index) => {
+                            root.codec = index;
+                            root.option-edited(EncodingField.codec);
+                        }
+                    }
+                }
+                Rectangle { height: 14px; }
+
+                FlexboxLayout {
+                    width: root.page-width;
+                    flex-direction: root.tablet ? column : row;
+                    flex-wrap: no-wrap;
+                    spacing: 22px;
+
+                    SettingColumn {
+                        width: root.setting-width;
+                        title: "TARGET SIZE";
+
+                        Rectangle {
+                            height: size-bar.height + size-reveal.height;
+                            border-radius: Theme.radius-segment;
+                            clip: true;
+
+                            AttachedDetailBackground {
+                                width: parent.width;
+                                height: parent.height;
+                                detail-width: size-fields.width;
+                                header-height: size-bar.height;
+                                visible: size-reveal.height > 0px;
+                            }
+                            VerticalLayout {
+                                spacing: 0px;
+
+                                size-bar := SegmentedBar {
+                                    vertical: root.phone;
+                                    attached-detail: root.size == 3;
+                                    options: ["20 MB", "25 MB", "64 MB", "Custom"];
+                                    icons: [SharingPlatform.discord, SharingPlatform.gmail, SharingPlatform.whatsapp, SharingPlatform.none];
+                                    selected: root.size;
+                                    selected-changed(index) => {
+                                        root.size = index;
+                                        root.option-edited(EncodingField.size);
+                                    }
+                                }
+                                size-reveal := Reveal {
+                                    shown: root.size == 3;
+
+                                    size-fields := InputGroup {
+                                        focused: size-input.has-focus;
+
+                                        size-input := NumberField {
+                                            value <=> root.custom-size;
+                                            accessible-label: "Target size in megabytes";
+                                            edited => { root.option-edited(EncodingField.custom-size); }
+                                        }
+                                        InlineLabel { text: "MB"; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    SettingColumn {
+                        width: root.setting-width;
+                        title: "RESOLUTION";
+
+                        Rectangle {
+                            height: resolution-bar.height + resolution-reveal.height;
+                            border-radius: Theme.radius-segment;
+                            clip: true;
+
+                            AttachedDetailBackground {
+                                width: parent.width;
+                                height: parent.height;
+                                detail-width: resolution-fields.width;
+                                header-height: resolution-bar.height;
+                                visible: resolution-reveal.height > 0px;
+                            }
+                            VerticalLayout {
+                                spacing: 0px;
+
+                                resolution-bar := SegmentedBar {
+                                    vertical: root.phone;
+                                    attached-detail: root.resolution == 3;
+                                    options: ["480p", "720p", "1080p", "Custom"];
+                                    selected: root.resolution;
+                                    selected-changed(index) => {
+                                        root.resolution = index;
+                                        root.option-edited(EncodingField.resolution);
+                                    }
+                                }
+                                resolution-reveal := Reveal {
+                                    shown: root.resolution == 3;
+
+                                    resolution-fields := InputGroup {
+                                        focused: custom-width.has-focus || custom-height.has-focus;
+
+                                        custom-width := NumberField {
+                                            field-width: 54px;
+                                            value <=> root.custom-width;
+                                            accessible-label: "Width in pixels";
+                                            edited => { root.option-edited(EncodingField.custom-width); }
+                                        }
+                                        InlineLabel { text: "×"; }
+                                        custom-height := NumberField {
+                                            field-width: 54px;
+                                            value <=> root.custom-height;
+                                            accessible-label: "Height in pixels";
+                                            edited => { root.option-edited(EncodingField.custom-height); }
+                                        }
+                                        InlineLabel { text: "px"; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Rectangle { height: 17px; }
+                SectionLabel { text: "AUDIO"; }
+                Rectangle { height: 8.8px; }
+
+                Rectangle {
+                    background: Theme.card-bg;
+                    border-radius: 7px;
+                    vertical-stretch: 0;
+                    clip: true;
+
+                    VerticalLayout {
+                        spacing: 0px;
+
+                        track-game := AudioTrackRow {
+                            width: root.page-width;
+                            compact: root.tablet;
+                            track-number: 1;
+                            track-name: "Game audio";
+                            track-info: "AAC · Stereo · 48 kHz";
+                            enabled <=> root.track-game;
+                            toggled => { root.option-edited(EncodingField.track-game); }
+                        }
+                        Divider { }
+                        track-mic := AudioTrackRow {
+                            width: root.page-width;
+                            compact: root.tablet;
+                            track-number: 2;
+                            track-name: "Microphone";
+                            track-info: "AAC · Mono · 48 kHz";
+                            enabled <=> root.track-mic;
+                            toggled => { root.option-edited(EncodingField.track-mic); }
+                        }
+                        Divider { }
+                        track-party := AudioTrackRow {
+                            width: root.page-width;
+                            compact: root.tablet;
+                            track-number: 3;
+                            track-name: "Party chat";
+                            track-info: "Opus · Stereo · 48 kHz";
+                            enabled <=> root.track-party;
+                            toggled => { root.option-edited(EncodingField.track-party); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,60 @@
+export enum ClipState {
+    waiting,
+    compressing,
+    finished,
+}
+
+export enum EncodingField {
+    codec,
+    size,
+    custom-size,
+    resolution,
+    custom-width,
+    custom-height,
+    track-game,
+    track-mic,
+    track-party,
+}
+
+export struct EncodingOptions {
+    codec: int,
+    size: int,
+    custom-size: string,
+    resolution: int,
+    custom-width: string,
+    custom-height: string,
+    track-game: bool,
+    track-mic: bool,
+    track-party: bool,
+}
+
+export struct ClipData {
+    file-name: string,
+    source-path: string,
+    metadata: string,
+    state: ClipState,
+    progress: float,
+    selected: bool,
+    options: EncodingOptions,
+}
+
+export enum SelectionOperation {
+    click,
+    box,
+    clear,
+    cancel,
+    edit,
+}
+
+export struct SelectionRequest {
+    operation: SelectionOperation,
+    gesture: int,
+    index: int,
+    anchor: int,
+    control: bool,
+    shift: bool,
+    origin: Point,
+    position: Point,
+    field: EncodingField,
+    options: EncodingOptions,
+}

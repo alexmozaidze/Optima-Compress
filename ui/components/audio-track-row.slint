@@ -8,6 +8,7 @@ export component AudioTrackRow inherits Rectangle {
     in property <string> track-info;
     in-out property <bool> enabled;
     in property <bool> compact;
+    callback toggled();
 
     min-height: root.compact ? 66px : 41px;
     vertical-stretch: 0;
@@ -63,6 +64,9 @@ export component AudioTrackRow inherits Rectangle {
 
     row-touch := ClickFocusArea {
         mouse-cursor: pointer;
-        clicked => { root.enabled = !root.enabled; }
+        clicked => {
+            root.enabled = !root.enabled;
+            root.toggled();
+        }
     }
 }
