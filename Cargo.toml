@@ -6,7 +6,17 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-slint = "1.18.1"
+# Backend and renderer are pinned rather than inherited from slint's defaults, so Qt can never
+# enter the build. Mirrors slint's default set with backend-winit in place of backend-default.
+slint = { version = "1.18.1", default-features = false, features = [
+    "std",
+    "backend-winit",
+    "renderer-femtovg",
+    "renderer-software",
+    "accessibility",
+    "compat-1-2",
+    "system-tray",
+] }
 
 [build-dependencies]
 slint-build = "1.18.1"
