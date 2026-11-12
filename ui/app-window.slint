@@ -198,7 +198,7 @@ export component AppWindow inherits Window {
                             compact: root.tablet;
                             track-number: 1;
                             track-name: "Game audio";
-                            track-format: "AAC · Stereo · 48 kHz";
+                            track-info: "AAC · Stereo · 48 kHz";
                             enabled <=> root.track-game;
                         }
                         Divider { }
@@ -207,7 +207,7 @@ export component AppWindow inherits Window {
                             compact: root.tablet;
                             track-number: 2;
                             track-name: "Microphone";
-                            track-format: "AAC · Mono · 48 kHz";
+                            track-info: "AAC · Mono · 48 kHz";
                             enabled <=> root.track-mic;
                         }
                         Divider { }
@@ -216,7 +216,7 @@ export component AppWindow inherits Window {
                             compact: root.tablet;
                             track-number: 3;
                             track-name: "Party chat";
-                            track-format: "Opus · Stereo · 48 kHz";
+                            track-info: "Opus · Stereo · 48 kHz";
                             enabled <=> root.track-party;
                         }
                     }

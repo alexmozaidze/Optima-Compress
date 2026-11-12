@@ -4,7 +4,7 @@ import { CheckSquare } from "check-box.slint";
 export component AudioTrackRow inherits Rectangle {
     in property <int> track-number;
     in property <string> track-name;
-    in property <string> track-format;
+    in property <string> track-info;
     in-out property <bool> enabled;
     in property <bool> compact;
 
@@ -51,7 +51,7 @@ export component AudioTrackRow inherits Rectangle {
             }
             format-text := Text {
                 width: root.compact ? root.width - 76px : self.preferred-width;
-                text: root.track-format;
+                text: root.track-info;
                 color: Theme.text-dim;
                 font-size: 12px;
                 wrap: word-wrap;
