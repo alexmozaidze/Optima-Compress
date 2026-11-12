@@ -21,7 +21,7 @@ export component AppWindow inherits Window {
 
     property <bool> tablet: root.width < 800px * (compression-label.font-size / 13px);
     property <bool> phone: root.width < 480px * (compression-label.font-size / 13px);
-    property <length> page-width: content-scroll.visible-width - 42px;
+    property <length> page-width: settings-scroll.visible-width - 42px;
     property <length> setting-width: root.tablet ? root.page-width : (root.page-width - 22px) / 2;
 
     in-out property <int> codec: 1;
@@ -60,60 +60,95 @@ export component AppWindow inherits Window {
             }
         }
 
-        content-scroll := ScrollView {
+        Rectangle {
+            min-height: 340px;
+            preferred-height: 340px;
+            vertical-stretch: 1;
+
+            video-scroll := ScrollView {
+                width: 100%;
+                height: 100%;
+                horizontal-scrollbar-policy: always-off;
+                content-width: self.visible-width;
+                content-height: Math.max(self.visible-height, video-content.min-height);
+
+                video-focus := FocusScope {
+                    width: video-content.width;
+                    height: video-scroll.content-height;
+                    focus-on-tab-navigation: false;
+                }
+
+                video-content := VerticalLayout {
+                    y: 0px;
+                    min-width: 0px;
+                    width: video-scroll.visible-width;
+                    height: self.min-height;
+                    padding-left: 21px;
+                    padding-right: 21px;
+                    padding-top: 14px;
+                    padding-bottom: 14px;
+                    spacing: 0px;
+
+                    dropzone := DropTarget {
+                        width: root.page-width;
+                        height: Math.max(95px, self.preferred-content-height);
+                    }
+                    Rectangle { height: 20px; }
+
+                    Rectangle {
+                        width: root.page-width;
+                        min-height: Math.max(root.phone ? 0px : 182px, clip-pending.min-height + clip-ready.min-height + 1px);
+                        vertical-stretch: 0;
+                        background: Theme.card-bg;
+                        border-radius: 7.7px;
+
+                        VerticalLayout {
+                            spacing: 0px;
+
+                            clip-pending := ClipRow {
+                                width: root.page-width;
+                                phone: root.phone;
+                                file-name: "ShadowPlay_Clip_01.mp4 (02:45)";
+                                ready: false;
+                                vertical-stretch: 1;
+                            }
+                            Divider { }
+                            clip-ready := ClipRow {
+                                width: root.page-width;
+                                phone: root.phone;
+                                file-name: "Aces_Round_5.mp4 (00:30)";
+                                ready: true;
+                                vertical-stretch: 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle { height: 1px; background: Theme.outline.with-alpha(0.35); }
+
+        settings-scroll := ScrollView {
+            preferred-height: settings-content.min-height;
+            vertical-stretch: 0;
             horizontal-scrollbar-policy: always-off;
             content-width: self.visible-width;
-            content-height: Math.max(self.visible-height, content.min-height);
+            content-height: Math.max(self.visible-height, settings-content.min-height);
 
-            content-focus := FocusScope {
-                width: content.width;
-                height: content.height;
+            settings-focus := FocusScope {
+                width: settings-content.width;
+                height: settings-scroll.content-height;
                 focus-on-tab-navigation: false;
             }
 
-            content := VerticalLayout {
+            settings-content := VerticalLayout {
                 min-width: 0px;
-                width: content-scroll.visible-width;
+                width: settings-scroll.visible-width;
                 padding-left: 21px;
                 padding-right: 21px;
                 padding-top: 14px;
                 padding-bottom: 20px;
                 spacing: 0px;
-
-                dropzone := DropTarget {
-                    width: root.page-width;
-                    height: Math.max(95px, self.preferred-content-height);
-                }
-                Rectangle { height: 20px; }
-
-                Rectangle {
-                    width: root.page-width;
-                    min-height: Math.max(root.phone ? 0px : 182px, clip-pending.min-height + clip-ready.min-height + 1px);
-                    vertical-stretch: 0;
-                    background: Theme.card-bg;
-                    border-radius: 7.7px;
-
-                    VerticalLayout {
-                        spacing: 0px;
-
-                        clip-pending := ClipRow {
-                            width: root.page-width;
-                            phone: root.phone;
-                            file-name: "ShadowPlay_Clip_01.mp4 (02:45)";
-                            ready: false;
-                            vertical-stretch: 1;
-                        }
-                        Divider { }
-                        clip-ready := ClipRow {
-                            width: root.page-width;
-                            phone: root.phone;
-                            file-name: "Aces_Round_5.mp4 (00:30)";
-                            ready: true;
-                            vertical-stretch: 1;
-                        }
-                    }
-                }
-                Rectangle { height: 14px; }
 
                 SettingColumn {
                     width: root.page-width;
