@@ -1,5 +1,5 @@
 import { Theme } from "../theme.slint";
-import { Tick } from "primitives.slint";
+import { ClickFocusArea, Tick } from "primitives.slint";
 
 export component CheckSquare inherits Rectangle {
     in-out property <bool> checked;
@@ -22,7 +22,7 @@ export component CheckSquare inherits Rectangle {
         scale: root.tick-extent / root.width;
     }
 
-    if interactive : TouchArea {
+    if interactive : ClickFocusArea {
         mouse-cursor: pointer;
         clicked => { root.checked = !root.checked; }
     }

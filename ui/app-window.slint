@@ -1,6 +1,6 @@
 import { Theme } from "theme.slint";
 import { ScrollView } from "std-widgets.slint";
-import { Divider } from "components/primitives.slint";
+import { ClickFocusArea, Divider } from "components/primitives.slint";
 import { DropTarget } from "components/drop-target.slint";
 import { ClipRow } from "components/clip-row.slint";
 import { SegmentedBar } from "components/segmented-bar.slint";
@@ -36,6 +36,10 @@ export component AppWindow inherits Window {
     in-out property <bool> track-mic: true;
     in-out property <bool> track-party: false;
 
+    background-focus := FocusScope {
+        focus-on-tab-navigation: false;
+    }
+
     VerticalLayout {
         spacing: 0px;
 
@@ -62,6 +66,12 @@ export component AppWindow inherits Window {
             horizontal-scrollbar-policy: always-off;
             content-width: self.visible-width;
             content-height: Math.max(self.visible-height, content.min-height);
+
+            content-focus := FocusScope {
+                width: content.width;
+                height: content.height;
+                focus-on-tab-navigation: false;
+            }
 
             content := VerticalLayout {
                 min-width: 0px;
@@ -294,7 +304,7 @@ export component AppWindow inherits Window {
                             vertical-alignment: center;
                         }
 
-                        start-touch := TouchArea {
+                        start-touch := ClickFocusArea {
                             mouse-cursor: pointer;
                         }
                     }

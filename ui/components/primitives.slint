@@ -5,6 +5,19 @@ export component Divider inherits Rectangle {
     background: Theme.divider;
 }
 
+export component ClickFocusArea inherits TouchArea {
+    focus-target := FocusScope {
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+    }
+
+    pointer-event(event) => {
+        if event.kind == PointerEventKind.down {
+            focus-target.focus();
+        }
+    }
+}
+
 export component Tick inherits Path {
     in property <float> scale: 1;
     property <float> safe-scale: Math.max(root.scale, 0.001);

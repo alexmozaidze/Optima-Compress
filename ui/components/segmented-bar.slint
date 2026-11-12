@@ -1,4 +1,5 @@
 import { Theme } from "../theme.slint";
+import { ClickFocusArea } from "primitives.slint";
 import { SharingPlatform, PlatformIcon } from "platform-icon.slint";
 
 component SegmentedOption inherits Rectangle {
@@ -116,7 +117,7 @@ export component SegmentedBar inherits Rectangle {
         selected: i == root.selected;
     }
 
-    touch := TouchArea {
+    touch := ClickFocusArea {
         mouse-cursor: touch.pressed ? grabbing : pointer;
         clicked => {
             root.selected-changed(root.option-at-pointer);

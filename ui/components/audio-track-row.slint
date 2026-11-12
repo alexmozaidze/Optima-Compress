@@ -1,5 +1,6 @@
 import { Theme } from "../theme.slint";
 import { CheckSquare } from "check-box.slint";
+import { ClickFocusArea } from "primitives.slint";
 
 export component AudioTrackRow inherits Rectangle {
     in property <int> track-number;
@@ -60,7 +61,7 @@ export component AudioTrackRow inherits Rectangle {
         }
     }
 
-    row-touch := TouchArea {
+    row-touch := ClickFocusArea {
         mouse-cursor: pointer;
         clicked => { root.enabled = !root.enabled; }
     }
