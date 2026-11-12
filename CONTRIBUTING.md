@@ -5,6 +5,16 @@
 `.editorconfig` is authoritative: spaces, 4 per level, LF, final newline. The `.slint` file is
 hand-written and follows the same rules; it is not a generated artifact.
 
+## UI and backend boundary
+
+Keep UI behavior and backend logic separate at all times. UI state, selection, option editing,
+and interaction handling belong in `.slint` files and must work in the standalone viewer
+without Rust callback handlers.
+
+Rust hosts the window and executes backend processing only when the user requests compression.
+Exchange inputs and results through explicit data and callback interfaces. Backend code must
+not own UI state, and UI components must not perform encoding work.
+
 ## State
 
 Window properties are the single source of truth. Components take `in` / `in-out` properties and

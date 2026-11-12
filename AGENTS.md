@@ -18,6 +18,10 @@ fails on `.slint` errors as well as Rust ones, and `cargo run` opens the window.
 
 ## Verify before finishing
 
+Prototype interactions must work in `slint-viewer --auto-reload ui/app-window.slint`, which
+does not run Rust callback handlers. A passing compiled-app check alone does not verify this
+workflow.
+
 UI work is not done until it has been looked at. Three levels, cheapest first:
 
 - `slint-viewer --check ui/app-window.slint` — diagnostics for the markup alone.
@@ -35,6 +39,9 @@ UI work is not done until it has been looked at. Three levels, cheapest first:
   build time, otherwise element ids are unavailable to the inspector. Issue pointer actions one
   at a time; parallel clicks drop one.
 
+  With that debug build ready, `python3 tests/ui_selection.py` runs the selection and per-video
+  option regression checks in its own short-lived headless app processes.
+
 ## Map
 
 - `ui/` — the entire interface: theme tokens, components, layout, interaction state.
@@ -42,6 +49,8 @@ UI work is not done until it has been looked at. Three levels, cheapest first:
 - `build.rs` — compiles the UI markup.
 
 ## Conventions
+
+Follow the [UI and backend boundary](CONTRIBUTING.md#ui-and-backend-boundary) for every change.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for formatting, the component and theme patterns, and the
 Slint behaviours that fail silently.
