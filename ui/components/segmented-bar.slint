@@ -48,11 +48,13 @@ export component SegmentedBar inherits Rectangle {
     in property <[SharingPlatform]> icons;
     in property <int> selected;
     in property <bool> vertical;
+    in property <bool> attached-detail;
     callback selected-changed(int);
 
     height: root.vertical ? root.options.length * 43px : 43px;
     background: Theme.segment-bg;
-    border-radius: 6.9px;
+    border-radius: Theme.radius-segment;
+    border-bottom-right-radius: root.attached-detail ? 0px : Theme.radius-segment;
 
     property <int> option-at-pointer: Math.max(0, Math.min(root.options.length - 1, Math.floor(root.vertical ? touch.mouse-y / root.cell-height : touch.mouse-x / root.cell-width)));
 

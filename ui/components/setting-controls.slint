@@ -34,28 +34,78 @@ export component InlineLabel inherits Text {
     vertical-alignment: center;
 }
 
-export component NumberField inherits Rectangle {
-    in-out property <string> value;
+export component AttachedDetailBackground inherits Rectangle {
+    in property <length> detail-width;
+    in property <length> header-height;
+
+    Rectangle {
+        x: root.width - root.detail-width;
+        width: root.detail-width;
+        height: root.height;
+        background: Theme.segment-bg;
+        border-radius: Theme.radius-segment;
+        border-top-left-radius: 0px;
+    }
+
+    Rectangle {
+        x: root.width - root.detail-width - Theme.radius-segment;
+        y: 0px;
+        width: 2 * Theme.radius-segment;
+        height: root.header-height + Theme.radius-segment;
+        background: Theme.segment-bg;
+        clip: true;
+
+        Rectangle {
+            x: -Theme.radius-segment;
+            y: root.header-height;
+            width: 2 * Theme.radius-segment;
+            height: self.width;
+            border-radius: Theme.radius-segment;
+            background: Theme.window-bg;
+        }
+    }
+}
+
+export component InputGroup inherits Rectangle {
+    in property <bool> focused;
+
+    horizontal-stretch: 0;
+    height: Theme.field-height + 20px;
+
+    VerticalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        padding-top: 8px;
+        padding-bottom: 12px;
+
+        Rectangle {
+            height: Theme.field-height;
+            border-radius: Theme.radius-control;
+            background: Theme.field-bg;
+            border-width: 1px;
+            border-color: root.focused ? Theme.accent : transparent;
+
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                spacing: 6px;
+
+                @children
+            }
+        }
+    }
+}
+
+export component NumberField inherits TextInput {
+    in-out property <string> value <=> root.text;
     in property <length> field-width: 62px;
 
-    width: field-width;
+    width: root.field-width;
     height: Theme.field-height;
-    border-radius: Theme.radius-control;
-    background: Theme.field-bg;
-    border-width: 1px;
-    border-color: Theme.outline;
-
-    TextInput {
-        x: 5px;
-        y: 0;
-        width: parent.width - 10px;
-        height: parent.height;
-        text <=> root.value;
-        color: Theme.text;
-        font-size: 13px;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
+    color: Theme.text;
+    font-size: 13px;
+    horizontal-alignment: center;
+    vertical-alignment: center;
 }
 
 export component Reveal inherits Rectangle {
@@ -63,15 +113,14 @@ export component Reveal inherits Rectangle {
 
     min-width: 0px;
     preferred-width: 0px;
-    height: root.shown ? Theme.field-height + 8px : 0px;
+    height: root.shown ? Theme.field-height + 20px : 0px;
     clip: true;
 
     animate height { duration: 200ms; easing: ease-in-out; }
 
     HorizontalLayout {
-        padding-top: 4px;
-        padding-bottom: 4px;
-        spacing: 7px;
+        alignment: end;
+        spacing: 0px;
 
         @children
     }

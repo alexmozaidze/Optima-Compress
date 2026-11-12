@@ -7,7 +7,7 @@ import { SegmentedBar } from "components/segmented-bar.slint";
 import { SharingPlatform } from "components/platform-icon.slint";
 import { CheckItem } from "components/check-box.slint";
 import { AudioTrackRow } from "components/audio-track-row.slint";
-import { SectionLabel, SettingColumn, InlineLabel, NumberField, Reveal } from "components/setting-controls.slint";
+import { SectionLabel, SettingColumn, InlineLabel, AttachedDetailBackground, InputGroup, NumberField, Reveal } from "components/setting-controls.slint";
 
 export component AppWindow inherits Window {
     in-out property <int> counter: 42;
@@ -130,23 +130,45 @@ export component AppWindow inherits Window {
                         width: root.setting-width;
                         title: "TARGET SIZE";
 
-                        size-bar := SegmentedBar {
-                            vertical: root.phone;
-                            options: ["20 MB", "25 MB", "64 MB", "Custom"];
-                            icons: [SharingPlatform.discord, SharingPlatform.gmail, SharingPlatform.whatsapp, SharingPlatform.none];
-                            selected: root.size;
-                            selected-changed(index) => { root.size = index; }
-                        }
+                        Rectangle {
+                            height: size-bar.height + size-reveal.height;
+                            border-radius: Theme.radius-segment;
+                            clip: true;
 
-                        Reveal {
-                            shown: root.size == 3;
-
-                            InlineLabel { text: "Size:"; }
-                            size-input := NumberField {
-                                value <=> root.custom-size;
+                            AttachedDetailBackground {
+                                width: parent.width;
+                                height: parent.height;
+                                detail-width: size-fields.width;
+                                header-height: size-bar.height;
+                                visible: size-reveal.height > 0px;
                             }
-                            InlineLabel { text: "MB"; }
-                            Rectangle { horizontal-stretch: 1; }
+
+                            VerticalLayout {
+                                spacing: 0px;
+
+                                size-bar := SegmentedBar {
+                                    vertical: root.phone;
+                                    attached-detail: root.size == 3;
+                                    options: ["20 MB", "25 MB", "64 MB", "Custom"];
+                                    icons: [SharingPlatform.discord, SharingPlatform.gmail, SharingPlatform.whatsapp, SharingPlatform.none];
+                                    selected: root.size;
+                                    selected-changed(index) => { root.size = index; }
+                                }
+
+                                size-reveal := Reveal {
+                                    shown: root.size == 3;
+
+                                    size-fields := InputGroup {
+                                        focused: size-input.has-focus;
+
+                                        size-input := NumberField {
+                                            value <=> root.custom-size;
+                                            accessible-label: "Target size in megabytes";
+                                        }
+                                        InlineLabel { text: "MB"; }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -154,28 +176,51 @@ export component AppWindow inherits Window {
                         width: root.setting-width;
                         title: "RESOLUTION";
 
-                        resolution-bar := SegmentedBar {
-                            vertical: root.phone;
-                            options: ["480p", "720p", "1080p", "Custom"];
-                            selected: root.resolution;
-                            selected-changed(index) => { root.resolution = index; }
-                        }
+                        Rectangle {
+                            height: resolution-bar.height + resolution-reveal.height;
+                            border-radius: Theme.radius-segment;
+                            clip: true;
 
-                        Reveal {
-                            shown: root.resolution == 3;
+                            AttachedDetailBackground {
+                                width: parent.width;
+                                height: parent.height;
+                                detail-width: resolution-fields.width;
+                                header-height: resolution-bar.height;
+                                visible: resolution-reveal.height > 0px;
+                            }
 
-                            InlineLabel { text: "Size:"; }
-                            custom-width := NumberField {
-                                field-width: 54px;
-                                value <=> root.custom-width;
+                            VerticalLayout {
+                                spacing: 0px;
+
+                                resolution-bar := SegmentedBar {
+                                    vertical: root.phone;
+                                    attached-detail: root.resolution == 3;
+                                    options: ["480p", "720p", "1080p", "Custom"];
+                                    selected: root.resolution;
+                                    selected-changed(index) => { root.resolution = index; }
+                                }
+
+                                resolution-reveal := Reveal {
+                                    shown: root.resolution == 3;
+
+                                    resolution-fields := InputGroup {
+                                        focused: custom-width.has-focus || custom-height.has-focus;
+
+                                        custom-width := NumberField {
+                                            field-width: 54px;
+                                            value <=> root.custom-width;
+                                            accessible-label: "Width in pixels";
+                                        }
+                                        InlineLabel { text: "×"; }
+                                        custom-height := NumberField {
+                                            field-width: 54px;
+                                            value <=> root.custom-height;
+                                            accessible-label: "Height in pixels";
+                                        }
+                                        InlineLabel { text: "px"; }
+                                    }
+                                }
                             }
-                            InlineLabel { text: "×"; }
-                            custom-height := NumberField {
-                                field-width: 54px;
-                                value <=> root.custom-height;
-                            }
-                            InlineLabel { text: "px"; }
-                            Rectangle { horizontal-stretch: 1; }
                         }
                     }
                 }
