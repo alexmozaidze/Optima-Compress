@@ -5,7 +5,6 @@ import { DropTarget } from "components/drop-target.slint";
 import { ClipRow } from "components/clip-row.slint";
 import { SegmentedBar } from "components/segmented-bar.slint";
 import { SharingPlatform } from "components/platform-icon.slint";
-import { CheckItem } from "components/check-box.slint";
 import { AudioTrackRow } from "components/audio-track-row.slint";
 import { SectionLabel, SettingColumn, InlineLabel, AttachedDetailBackground, InputGroup, NumberField, Reveal } from "components/setting-controls.slint";
 
@@ -31,7 +30,6 @@ export component AppWindow inherits Window {
     in-out property <int> resolution: 1;
     in-out property <string> custom-width: "1920";
     in-out property <string> custom-height: "1080";
-    in-out property <bool> copy-on-finish: false;
     in-out property <bool> track-game: true;
     in-out property <bool> track-mic: true;
     in-out property <bool> track-party: false;
@@ -279,14 +277,9 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                Rectangle { min-height: root.tablet ? 20px : 0px; vertical-stretch: 1; }
-
-                FlexboxLayout {
+                HorizontalLayout {
                     width: root.page-width;
-                    flex-direction: root.tablet ? column : row;
-                    flex-wrap: no-wrap;
-                    alignment: end;
-                    spacing: 15px;
+                    alignment: center;
 
                     start-button := Rectangle {
                         width: root.tablet ? root.page-width : Math.max(205px, compression-label.preferred-width + 24px);
@@ -306,16 +299,6 @@ export component AppWindow inherits Window {
 
                         start-touch := ClickFocusArea {
                             mouse-cursor: pointer;
-                        }
-                    }
-
-                    VerticalLayout {
-                        width: root.tablet ? root.page-width : copy-on-finish.label-width + 25.4px;
-                        alignment: center;
-                        copy-on-finish := CheckItem {
-                            width: parent.width;
-                            label: "Copy to clipboard on finish";
-                            checked <=> root.copy-on-finish;
                         }
                     }
                 }
