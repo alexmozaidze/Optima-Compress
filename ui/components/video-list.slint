@@ -1,15 +1,19 @@
 import { Theme } from "../theme.slint";
-import { ClipData, EncodingOptions, EncodingField, SelectionRequest, SelectionOperation } from "../clip-model.slint";
+import { AudioTrack, ClipData, EncodingOptions, EncodingConflicts, EncodingField, SelectionRequest, SelectionOperation } from "../clip-model.slint";
 import { SelectableClip } from "selectable-clip.slint";
 import { ScrollView } from "std-widgets.slint";
 
 export component VideoList inherits Rectangle {
     in-out property <[ClipData]> clips;
     in property <bool> phone;
-    in property <length> bottom-inset;
     out property <bool> selecting;
     out property <int> selected-count;
-    out property <bool> mixed-options;
+    out property <[AudioTrack]> audio-tracks;
+    out property <int> selection-revision;
+    out property <EncodingConflicts> option-conflicts;
+    out property <bool> mixed-options: root.option-conflicts.codec || root.option-conflicts.size || root.option-conflicts.custom-size
+        || root.option-conflicts.frame-rate || root.option-conflicts.custom-frame-rate
+        || root.option-conflicts.resolution || root.option-conflicts.custom-width || root.option-conflicts.custom-height;
     callback selection-changed(EncodingOptions);
 
     property <bool> marquee-active;
@@ -19,24 +23,46 @@ export component VideoList inherits Rectangle {
     property <int> reported-count;
     property <int> pending-selected-count;
     property <int> first-selected: -1;
-    property <bool> pending-mixed;
+    property <EncodingConflicts> pending-conflicts;
     property <EncodingOptions> pending-options;
+    property <[AudioTrack]> pending-audio-tracks;
+
+    pure function conflicts-with(options: EncodingOptions) -> EncodingConflicts {
+        return {
+            codec: root.pending-conflicts.codec || options.codec != root.pending-options.codec,
+            frame-rate: root.pending-conflicts.frame-rate || options.frame-rate != root.pending-options.frame-rate,
+            custom-frame-rate: root.pending-conflicts.custom-frame-rate || options.custom-frame-rate != root.pending-options.custom-frame-rate,
+            size: root.pending-conflicts.size || options.size != root.pending-options.size,
+            custom-size: root.pending-conflicts.custom-size || options.custom-size != root.pending-options.custom-size,
+            resolution: root.pending-conflicts.resolution || options.resolution != root.pending-options.resolution,
+            custom-width: root.pending-conflicts.custom-width || options.custom-width != root.pending-options.custom-width,
+            custom-height: root.pending-conflicts.custom-height || options.custom-height != root.pending-options.custom-height,
+        };
+    }
 
     function dispatch() {
         root.reported-count = 0;
         root.pending-selected-count = 0;
+        root.pending-audio-tracks = [];
         root.first-selected = -1;
-        root.pending-mixed = false;
+        root.pending-conflicts = {
+            codec: false, size: false, custom-size: false, resolution: false,
+            frame-rate: false, custom-frame-rate: false,
+            custom-width: false, custom-height: false,
+        };
         root.request-revision += 1;
         if root.clips.length == 0 {
             root.selected-count = 0;
-            root.mixed-options = false;
+            root.audio-tracks = [];
+            root.option-conflicts = root.pending-conflicts;
+            root.selection-revision += 1;
         }
     }
 
-    function report-row(index: int, selected: bool, options: EncodingOptions) {
+    function report-row(index: int, selected: bool, options: EncodingOptions, audio-tracks: [AudioTrack]) {
         if selected {
-            if root.pending-selected-count > 0 && options != root.pending-options { root.pending-mixed = true; }
+            if root.pending-selected-count > 0 { root.pending-conflicts = root.conflicts-with(options); }
+            if audio-tracks.length > root.pending-audio-tracks.length { root.pending-audio-tracks = audio-tracks; }
             if root.first-selected < 0 || index < root.first-selected {
                 root.first-selected = index;
                 root.pending-options = options;
@@ -46,8 +72,10 @@ export component VideoList inherits Rectangle {
         root.reported-count += 1;
         if root.reported-count == root.clips.length {
             root.selected-count = root.pending-selected-count;
-            root.mixed-options = root.pending-mixed;
+            root.audio-tracks = root.pending-audio-tracks;
+            root.option-conflicts = root.pending-conflicts;
             root.selection-changed(root.pending-options);
+            root.selection-revision += 1;
         }
     }
 
@@ -103,6 +131,13 @@ export component VideoList inherits Rectangle {
         root.dispatch();
     }
 
+    public function edit-audio(index: int, enabled: bool) {
+        root.request.operation = SelectionOperation.edit-audio;
+        root.request.audio-track-index = index;
+        root.request.audio-track-enabled = enabled;
+        root.dispatch();
+    }
+
     list-focus := FocusScope {
         key-pressed(event) => {
             if event.text == Key.Escape {
@@ -119,7 +154,7 @@ export component VideoList inherits Rectangle {
         horizontal-scrollbar-policy: always-off;
         mouse-drag-pan-enabled: false;
         content-width: self.visible-width;
-        content-height: Math.max(self.visible-height, list-rows.min-height + 28px + root.bottom-inset);
+        content-height: Math.max(self.visible-height, list-rows.min-height + 28px);
 
         list-surface := Rectangle {
             width: list-scroll.visible-width;
@@ -137,9 +172,9 @@ export component VideoList inherits Rectangle {
             }
 
             list-rows := VerticalLayout {
-                x: 21px;
+                x: Theme.video-list-inset;
                 y: 14px;
-                width: list-surface.width - 42px;
+                width: list-surface.width - 2 * Theme.video-list-inset;
                 height: self.min-height;
                 spacing: 8px;
 
@@ -154,6 +189,7 @@ export component VideoList inherits Rectangle {
                     progress: clip.progress;
                     selected: clip.selected;
                     options: clip.options;
+                    audio-track-count: clip.audio-tracks.length;
                     request: root.request;
                     request-revision: root.request-revision;
                     encoding-codec: clip.options.codec == 0 ? "AV1" : "H.264";
@@ -168,7 +204,11 @@ export component VideoList inherits Rectangle {
                     row-updated(index, selected, options) => {
                         clip.selected = selected;
                         clip.options = options;
-                        root.report-row(index, selected, options);
+                        root.report-row(index, selected, options, clip.audio-tracks);
+                    }
+                    audio-updated(index, enabled) => {
+                        let track = clip.audio-tracks[index];
+                        clip.audio-tracks[index] = { name: track.name, info: track.info, enabled: enabled };
                     }
                 }
             }

@@ -6,26 +6,41 @@ export enum ClipState {
 
 export enum EncodingField {
     codec,
+    frame-rate,
+    custom-frame-rate,
     size,
     custom-size,
     resolution,
     custom-width,
     custom-height,
-    track-game,
-    track-mic,
-    track-party,
 }
 
 export struct EncodingOptions {
     codec: int,
+    frame-rate: int,
+    custom-frame-rate: string,
     size: int,
     custom-size: string,
     resolution: int,
     custom-width: string,
     custom-height: string,
-    track-game: bool,
-    track-mic: bool,
-    track-party: bool,
+}
+
+export struct EncodingConflicts {
+    codec: bool,
+    frame-rate: bool,
+    custom-frame-rate: bool,
+    size: bool,
+    custom-size: bool,
+    resolution: bool,
+    custom-width: bool,
+    custom-height: bool,
+}
+
+export struct AudioTrack {
+    name: string,
+    info: string,
+    enabled: bool,
 }
 
 export struct ClipData {
@@ -35,6 +50,7 @@ export struct ClipData {
     state: ClipState,
     progress: float,
     selected: bool,
+    audio-tracks: [AudioTrack],
     options: EncodingOptions,
 }
 
@@ -44,6 +60,7 @@ export enum SelectionOperation {
     clear,
     cancel,
     edit,
+    edit-audio,
 }
 
 export struct SelectionRequest {
@@ -57,4 +74,6 @@ export struct SelectionRequest {
     position: Point,
     field: EncodingField,
     options: EncodingOptions,
+    audio-track-index: int,
+    audio-track-enabled: bool,
 }

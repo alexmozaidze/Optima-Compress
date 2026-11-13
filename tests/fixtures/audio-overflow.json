@@ -1,0 +1,52 @@
+{
+    "clips": [
+        {
+            "file-name": "Silent.mp4",
+            "source-path": "",
+            "metadata": "Audio scrolling fixture",
+            "state": "waiting",
+            "progress": 0,
+            "selected": false,
+            "audio-tracks": [],
+            "options": {
+                "codec": 1, "size": 0, "custom-size": "8", "resolution": 1,
+                "custom-width": "1920", "custom-height": "1080"
+            }
+        },
+        {
+            "file-name": "Six_Tracks.mp4",
+            "source-path": "",
+            "metadata": "Audio scrolling fixture",
+            "state": "waiting",
+            "progress": 0,
+            "selected": false,
+            "audio-tracks": [
+                { "name": "Game audio", "info": "AAC · Stereo · 48 kHz", "enabled": true },
+                { "name": "Microphone", "info": "AAC · Mono · 48 kHz", "enabled": true },
+                { "name": "Party chat", "info": "Opus · Stereo · 48 kHz", "enabled": false },
+                { "name": "Music", "info": "AAC · Stereo · 48 kHz", "enabled": false },
+                { "name": "Commentary", "info": "AAC · Mono · 48 kHz", "enabled": false },
+                { "name": "System audio", "info": "AAC · Stereo · 48 kHz", "enabled": false }
+            ],
+            "options": {
+                "codec": 1, "size": 0, "custom-size": "8", "resolution": 1,
+                "custom-width": "1920", "custom-height": "1080"
+            }
+        },
+        {
+            "file-name": "Single_Track.mp4",
+            "source-path": "",
+            "metadata": "Audio scrolling fixture",
+            "state": "waiting",
+            "progress": 0,
+            "selected": false,
+            "audio-tracks": [
+                { "name": "Game audio", "info": "AAC · Stereo · 48 kHz", "enabled": true }
+            ],
+            "options": {
+                "codec": 1, "size": 0, "custom-size": "8", "resolution": 1,
+                "custom-width": "1920", "custom-height": "1080"
+            }
+        }
+    ]
+}

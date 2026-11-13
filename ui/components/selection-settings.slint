@@ -1,5 +1,5 @@
 import { Theme } from "../theme.slint";
-import { EncodingField } from "../clip-model.slint";
+import { AudioTrack, ClipData, EncodingField, EncodingConflicts } from "../clip-model.slint";
 import { ScrollView } from "std-widgets.slint";
 import { ClickFocusArea, Divider } from "primitives.slint";
 import { SegmentedBar } from "segmented-bar.slint";
@@ -9,113 +9,183 @@ import { SectionLabel, SettingColumn, InlineLabel, AttachedDetailBackground, Inp
 
 export component SelectionSettings inherits Rectangle {
     in property <int> selected-count;
-    in property <bool> mixed-options;
+    in property <EncodingConflicts> conflicts;
+    in property <[ClipData]> clips;
+    in property <[AudioTrack]> audio-tracks;
+    in property <int> selection-revision;
     in property <bool> tablet;
     in property <bool> phone;
     in-out property <int> codec;
+    in-out property <int> frame-rate;
+    in-out property <string> custom-frame-rate;
     in-out property <int> size;
     in-out property <string> custom-size;
     in-out property <int> resolution;
     in-out property <string> custom-width;
     in-out property <string> custom-height;
-    in-out property <bool> track-game;
-    in-out property <bool> track-mic;
-    in-out property <bool> track-party;
     callback option-edited(EncodingField);
-    callback clear-selection();
+    callback audio-edited(int, bool);
+    out property <bool> mixed-audio: root.audio-mixed-count > 0;
+    out property <bool> audio-names-differ: root.audio-name-conflict-count > 0;
 
     property <length> page-width: settings-scroll.visible-width - 32px;
     property <length> setting-width: root.tablet ? root.page-width : (root.page-width - 22px) / 2;
+    property <bool> editable: root.selected-count > 0;
+    property <length> top-border-height: 1px;
+    property <int> audio-revision;
+    property <int> audio-mixed-count;
+    property <int> audio-name-conflict-count;
+    // NOTE: keeps the ScrollView's content-height at or below its visible height once everything fits, so a
+    // scrollbar cannot appear from fractional layout rounding.
+    property <length> content-fit-slack: 1px;
+    property <int> max-visible-audio-tracks: 4;
+    property <length> audio-row-height: root.tablet ? Theme.audio-row-height-compact : Theme.audio-row-height;
+    property <length> audio-height-limit: root.max-visible-audio-tracks * root.audio-row-height
+        + (root.max-visible-audio-tracks - 1) * 1px + 16px;
+    property <length> reserved-custom-height: frame-rate-fields.height + (root.tablet
+        ? size-fields.height + resolution-fields.height : Math.max(size-fields.height, resolution-fields.height));
+    property <length> revealed-custom-height: frame-rate-reveal.height + (root.tablet
+        ? size-reveal.height + resolution-reveal.height : Math.max(size-reveal.height, resolution-reveal.height));
+    property <length> audio-list-height: root.audio-height-limit
+        + root.reserved-custom-height - root.revealed-custom-height;
+    property <length> codec-row-base-height: root.tablet
+        ? codec-column.header-height + codec-bar.height + frame-rate-column.header-height + frame-rate-bar.height + codec-row.spacing
+        : Math.max(codec-column.header-height + codec-bar.height, frame-rate-column.header-height + frame-rate-bar.height);
+    property <length> size-resolution-row-base-height: root.tablet
+        ? size-column.header-height + size-bar.height + resolution-column.header-height + resolution-bar.height + size-resolution-row.spacing
+        : Math.max(size-column.header-height + size-bar.height, resolution-column.header-height + resolution-bar.height);
 
-    preferred-height: panel-header.min-height + settings-content.min-height + 2px;
+    changed selection-revision => {
+        root.audio-mixed-count = 0;
+        root.audio-name-conflict-count = 0;
+        root.audio-revision += 1;
+    }
+
+    function report-audio-summary(revision: int, mixed: bool, names-differ: bool) {
+        if revision != root.audio-revision { return; }
+        if mixed { root.audio-mixed-count += 1; }
+        if names-differ { root.audio-name-conflict-count += 1; }
+    }
+
+    preferred-height: settings-content.padding-top + settings-content.padding-bottom + root.top-border-height
+        + root.codec-row-base-height + setting-row-gap.height + root.size-resolution-row-base-height
+        + root.reserved-custom-height + audio-heading.min-height + root.audio-height-limit
+        + root.content-fit-slack;
     background: Theme.window-bg;
-    border-radius: 12px;
-    border-width: 1px;
-    border-color: Theme.outline;
+    border-radius: 0px;
     clip: true;
 
-    panel-touch := ClickFocusArea { }
+    panel-touch := ClickFocusArea {
+        mouse-cursor: root.editable ? default : not-allowed;
+    }
 
     VerticalLayout {
         spacing: 0px;
 
-        panel-header := HorizontalLayout {
-            padding: 16px;
-            spacing: 12px;
-
-            VerticalLayout {
-                min-width: 0px;
-                horizontal-stretch: 1;
-                spacing: 4px;
-
-                Text {
-                    text: root.selected-count == 1 ? "1 video selected" : root.selected-count + " videos selected";
-                    color: Theme.text;
-                    font-size: 14px;
-                    font-weight: 600;
-                }
-                Text {
-                    text: root.mixed-options ? "Mixed settings · showing the first video; only edited options are shared" : "Changes apply only to selected videos";
-                    color: Theme.text-dim;
-                    font-size: 12px;
-                    wrap: word-wrap;
-                }
-            }
-            Rectangle {
-                width: clear-label.preferred-width + 12px;
-                height: Math.max(28px, clear-label.preferred-height + 8px);
-                background: clear-touch.has-hover ? Theme.card-bg : transparent;
-                border-radius: Theme.radius-control;
-
-                clear-label := Text {
-                    text: "Clear";
-                    color: Theme.text;
-                    font-size: 12px;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-                clear-touch := ClickFocusArea {
-                    mouse-cursor: pointer;
-                    clicked => { root.clear-selection(); }
-                }
-            }
+        Rectangle {
+            height: root.top-border-height;
+            background: Theme.outline;
         }
-        Divider { }
 
         settings-scroll := ScrollView {
+            opacity: root.editable ? 1 : 0.45;
             horizontal-scrollbar-policy: always-off;
             content-width: self.visible-width;
             content-height: Math.max(self.visible-height, settings-content.min-height);
 
             settings-content := VerticalLayout {
+                x: 0px;
+                y: 0px;
                 min-width: 0px;
                 width: settings-scroll.visible-width;
-                padding: 16px;
+                height: self.min-height;
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 16px;
+                padding-bottom: 32px;
                 spacing: 0px;
 
-                SettingColumn {
-                    width: root.page-width;
-                    title: "CODEC";
-
-                    codec-bar := SegmentedBar {
-                        vertical: root.phone;
-                        options: ["Quality (AV1)", "Compatibility (H.264)"];
-                        selected: root.codec;
-                        selected-changed(index) => {
-                            root.codec = index;
-                            root.option-edited(EncodingField.codec);
-                        }
-                    }
-                }
-                Rectangle { height: 14px; }
-
-                FlexboxLayout {
+                codec-row := FlexboxLayout {
                     width: root.page-width;
                     flex-direction: root.tablet ? column : row;
                     flex-wrap: no-wrap;
                     spacing: 22px;
 
-                    SettingColumn {
+                    codec-column := SettingColumn {
+                        width: root.setting-width;
+                        title: "CODEC";
+
+                        codec-bar := SegmentedBar {
+                            enabled: root.editable;
+                            vertical: root.phone;
+                            options: ["Quality (AV1)", "Compatibility (H.264)"];
+                            selected: !root.editable || root.conflicts.codec ? -1 : root.codec;
+                            selected-changed(index) => {
+                                root.codec = index;
+                                root.option-edited(EncodingField.codec);
+                            }
+                        }
+                    }
+                    frame-rate-column := SettingColumn {
+                        width: root.setting-width;
+                        title: "FPS";
+
+                        Rectangle {
+                            height: frame-rate-bar.height + frame-rate-reveal.height;
+                            border-radius: Theme.radius-segment;
+                            clip: true;
+
+                            AttachedDetailBackground {
+                                width: parent.width;
+                                height: parent.height;
+                                detail-width: frame-rate-fields.width;
+                                header-height: frame-rate-bar.height;
+                                visible: frame-rate-reveal.height > 0px;
+                            }
+                            VerticalLayout {
+                                spacing: 0px;
+
+                                frame-rate-bar := SegmentedBar {
+                                    enabled: root.editable;
+                                    vertical: root.phone;
+                                    attached-detail: !root.conflicts.frame-rate && root.frame-rate == 3;
+                                    options: ["60", "30", "15", "Custom"];
+                                    selected: !root.editable || root.conflicts.frame-rate ? -1 : root.frame-rate;
+                                    selected-changed(index) => {
+                                        root.frame-rate = index;
+                                        root.option-edited(EncodingField.frame-rate);
+                                    }
+                                }
+                                frame-rate-reveal := Reveal {
+                                    shown: !root.conflicts.frame-rate && root.frame-rate == 3;
+
+                                    frame-rate-fields := InputGroup {
+                                        focused: frame-rate-input.has-focus;
+
+                                        frame-rate-input := NumberField {
+                                            enabled: root.editable;
+                                            read-only: !root.editable;
+                                            value <=> root.custom-frame-rate;
+                                            accessible-description: root.conflicts.custom-frame-rate ? "Mixed values" : "";
+                                            accessible-label: "Custom frames per second";
+                                            edited => { root.option-edited(EncodingField.custom-frame-rate); }
+                                        }
+                                        InlineLabel { text: "FPS"; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                setting-row-gap := Rectangle { height: 14px; }
+
+                size-resolution-row := FlexboxLayout {
+                    width: root.page-width;
+                    flex-direction: root.tablet ? column : row;
+                    flex-wrap: no-wrap;
+                    spacing: 22px;
+
+                    size-column := SettingColumn {
                         width: root.setting-width;
                         title: "TARGET SIZE";
 
@@ -135,24 +205,28 @@ export component SelectionSettings inherits Rectangle {
                                 spacing: 0px;
 
                                 size-bar := SegmentedBar {
+                                    enabled: root.editable;
                                     vertical: root.phone;
-                                    attached-detail: root.size == 3;
+                                    attached-detail: !root.conflicts.size && root.size == 3;
                                     options: ["20 MB", "25 MB", "64 MB", "Custom"];
                                     icons: [SharingPlatform.discord, SharingPlatform.gmail, SharingPlatform.whatsapp, SharingPlatform.none];
-                                    selected: root.size;
+                                    selected: !root.editable || root.conflicts.size ? -1 : root.size;
                                     selected-changed(index) => {
                                         root.size = index;
                                         root.option-edited(EncodingField.size);
                                     }
                                 }
                                 size-reveal := Reveal {
-                                    shown: root.size == 3;
+                                    shown: !root.conflicts.size && root.size == 3;
 
                                     size-fields := InputGroup {
                                         focused: size-input.has-focus;
 
                                         size-input := NumberField {
+                                            enabled: root.editable;
+                                            read-only: !root.editable;
                                             value <=> root.custom-size;
+                                            accessible-description: root.conflicts.custom-size ? "Mixed values" : "";
                                             accessible-label: "Target size in megabytes";
                                             edited => { root.option-edited(EncodingField.custom-size); }
                                         }
@@ -162,7 +236,7 @@ export component SelectionSettings inherits Rectangle {
                             }
                         }
                     }
-                    SettingColumn {
+                    resolution-column := SettingColumn {
                         width: root.setting-width;
                         title: "RESOLUTION";
 
@@ -182,31 +256,38 @@ export component SelectionSettings inherits Rectangle {
                                 spacing: 0px;
 
                                 resolution-bar := SegmentedBar {
+                                    enabled: root.editable;
                                     vertical: root.phone;
-                                    attached-detail: root.resolution == 3;
+                                    attached-detail: !root.conflicts.resolution && root.resolution == 3;
                                     options: ["480p", "720p", "1080p", "Custom"];
-                                    selected: root.resolution;
+                                    selected: !root.editable || root.conflicts.resolution ? -1 : root.resolution;
                                     selected-changed(index) => {
                                         root.resolution = index;
                                         root.option-edited(EncodingField.resolution);
                                     }
                                 }
                                 resolution-reveal := Reveal {
-                                    shown: root.resolution == 3;
+                                    shown: !root.conflicts.resolution && root.resolution == 3;
 
                                     resolution-fields := InputGroup {
                                         focused: custom-width.has-focus || custom-height.has-focus;
 
                                         custom-width := NumberField {
+                                            enabled: root.editable;
+                                            read-only: !root.editable;
                                             field-width: 54px;
                                             value <=> root.custom-width;
+                                            accessible-description: root.conflicts.custom-width ? "Mixed values" : "";
                                             accessible-label: "Width in pixels";
                                             edited => { root.option-edited(EncodingField.custom-width); }
                                         }
                                         InlineLabel { text: "×"; }
                                         custom-height := NumberField {
+                                            enabled: root.editable;
+                                            read-only: !root.editable;
                                             field-width: 54px;
                                             value <=> root.custom-height;
+                                            accessible-description: root.conflicts.custom-height ? "Mixed values" : "";
                                             accessible-label: "Height in pixels";
                                             edited => { root.option-edited(EncodingField.custom-height); }
                                         }
@@ -217,47 +298,119 @@ export component SelectionSettings inherits Rectangle {
                         }
                     }
                 }
-                Rectangle { height: 17px; }
-                SectionLabel { text: "AUDIO"; }
-                Rectangle { height: 8.8px; }
-
-                Rectangle {
-                    background: Theme.card-bg;
-                    border-radius: 7px;
+                audio-section := Rectangle {
+                    height: audio-section-content.min-height;
                     vertical-stretch: 0;
                     clip: true;
 
-                    VerticalLayout {
+                    audio-section-content := VerticalLayout {
                         spacing: 0px;
 
-                        track-game := AudioTrackRow {
-                            width: root.page-width;
-                            compact: root.tablet;
-                            track-number: 1;
-                            track-name: "Game audio";
-                            track-info: "AAC · Stereo · 48 kHz";
-                            enabled <=> root.track-game;
-                            toggled => { root.option-edited(EncodingField.track-game); }
+                        audio-heading := VerticalLayout {
+                            spacing: 0px;
+
+                            Rectangle { height: 17px; }
+                            SectionLabel { text: "AUDIO"; }
+                            Rectangle { height: 8.8px; }
                         }
-                        Divider { }
-                        track-mic := AudioTrackRow {
-                            width: root.page-width;
-                            compact: root.tablet;
-                            track-number: 2;
-                            track-name: "Microphone";
-                            track-info: "AAC · Mono · 48 kHz";
-                            enabled <=> root.track-mic;
-                            toggled => { root.option-edited(EncodingField.track-mic); }
-                        }
-                        Divider { }
-                        track-party := AudioTrackRow {
-                            width: root.page-width;
-                            compact: root.tablet;
-                            track-number: 3;
-                            track-name: "Party chat";
-                            track-info: "Opus · Stereo · 48 kHz";
-                            enabled <=> root.track-party;
-                            toggled => { root.option-edited(EncodingField.track-party); }
+
+                        audio-list := Rectangle {
+                            height: root.audio-list-height;
+                            background: Theme.audio-list-bg;
+                            border-radius: 7px;
+                            vertical-stretch: 0;
+                            clip: true;
+
+                            audio-warning := Rectangle {
+                                x: 0px;
+                                y: 0px;
+                                width: parent.width;
+                                height: root.editable && root.audio-names-differ
+                                    ? Math.max(audio-warning-label.preferred-height, warning-icon.height) + 16px : 0px;
+                                background: Theme.warning.with-alpha(0.08);
+                                clip: true;
+
+                                warning-icon-panel := Rectangle {
+                                    x: 0px;
+                                    y: 0px;
+                                    width: 48px;
+                                    height: parent.height;
+                                    background: Theme.warning.with-alpha(0.12);
+
+                                    warning-icon := Image {
+                                        width: 24px;
+                                        height: 24px;
+                                        source: @image-url("../icons/warning.svg");
+                                        image-fit: contain;
+                                        image-rendering: smooth;
+                                        colorize: Theme.warning;
+                                    }
+                                }
+
+                                audio-warning-label := Text {
+                                    x: warning-icon-panel.width + 12px;
+                                    y: 8px;
+                                    width: parent.width - self.x - 12px;
+                                    height: self.preferred-height;
+                                    text: "Track names differ between videos. The same track number may contain different audio in each video, so check your selection to avoid merging audio tracks in unintended ways.";
+                                    color: Theme.warning;
+                                    font-size: 12px;
+                                    wrap: word-wrap;
+                                }
+                            }
+
+                            audio-scroll := ScrollView {
+                                y: audio-warning.height;
+                                width: parent.width;
+                                height: Math.max(0px, parent.height - self.y);
+                                horizontal-scrollbar-policy: always-off;
+                                vertical-scrollbar-policy: as-needed;
+                                content-width: self.visible-width;
+                                content-height: audio-rows.min-height;
+
+                                audio-rows := VerticalLayout {
+                                    x: 0px;
+                                    y: 0px;
+                                    width: audio-scroll.visible-width;
+                                    height: self.min-height;
+                                    spacing: 0px;
+
+                                    for track[index] in root.audio-tracks : VerticalLayout {
+                                        spacing: 0px;
+
+                                        if index > 0 : Divider { }
+                                        audio-track := AudioTrackRow {
+                                            interactive: root.editable;
+                                            width: audio-rows.width;
+                                            compact: root.tablet;
+                                            track-number: index + 1;
+                                            track-name: track.name;
+                                            track-info: track.info;
+                                            clips: root.clips;
+                                            track-index: index;
+                                            selection-revision: root.audio-revision;
+                                            toggled(enabled) => { root.audio-edited(index, enabled); }
+                                            summary-reported(revision, mixed, names-differ) => { root.report-audio-summary(revision, mixed, names-differ); }
+                                            scroll-requested => {
+                                                let bottom-overflow = audio-scroll.absolute-position.y + audio-scroll.height
+                                                    + settings-content.padding-bottom
+                                                    - settings-scroll.absolute-position.y - settings-scroll.visible-height;
+                                                if bottom-overflow > 0.5px {
+                                                    settings-scroll.content-y -= bottom-overflow;
+                                                    return accept;
+                                                }
+                                                let top-overflow = settings-scroll.absolute-position.y
+                                                    + settings-content.padding-top - audio-scroll.absolute-position.y;
+                                                if top-overflow > 0.5px {
+                                                    settings-scroll.content-y += top-overflow;
+                                                    return accept;
+                                                }
+                                                return reject;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

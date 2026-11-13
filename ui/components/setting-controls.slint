@@ -14,15 +14,16 @@ export component SectionLabel inherits Text {
 
 export component SettingColumn inherits VerticalLayout {
     in property <string> title;
+    out property <length> header-height: column-label.height + label-gap.height;
 
     min-width: 0px;
     preferred-width: 0px;
     horizontal-stretch: 1;
 
-    SectionLabel {
+    column-label := SectionLabel {
         text: root.title;
     }
-    Rectangle { height: 7.7px; }
+    label-gap := Rectangle { height: 7.7px; }
 
     @children
 }

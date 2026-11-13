@@ -194,12 +194,15 @@ export component ClipRow inherits Rectangle {
         }
     }
 
-    if root.selected : Rectangle {
+    selection-highlight := Rectangle {
         width: root.width;
         height: root.height;
         border-radius: root.border-radius;
         border-width: 2px;
         border-color: Theme.accent;
         background: Theme.accent.with-alpha(0.05);
+        opacity: root.selected ? 1 : 0;
+
+        animate opacity { duration: 160ms; easing: ease-out; }
     }
 }

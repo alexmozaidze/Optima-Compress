@@ -1,16 +1,104 @@
 import { Theme } from "../theme.slint";
 import { CheckSquare } from "check-box.slint";
 import { ClickFocusArea } from "primitives.slint";
+import { ClipData } from "../clip-model.slint";
+
+component AudioTrackContribution inherits Rectangle {
+    in property <ClipData> video;
+    in property <int> track-index;
+    in property <int> revision;
+    in property <string> track-name;
+    callback reported(int, bool, bool, bool);
+
+    width: 0px;
+    height: 0px;
+
+    changed revision => {
+        let available = root.video.selected && root.track-index < root.video.audio-tracks.length;
+        let enabled = available && root.video.audio-tracks[root.track-index].enabled;
+        let same-name = !available || root.video.audio-tracks[root.track-index].name == root.track-name;
+        root.reported(root.revision, available, enabled, same-name);
+    }
+}
 
 export component AudioTrackRow inherits Rectangle {
     in property <int> track-number;
     in property <string> track-name;
     in property <string> track-info;
-    in-out property <bool> enabled;
+    in property <[ClipData]> clips;
+    in property <int> track-index;
+    in property <int> selection-revision;
+    out property <bool> enabled: root.enabled-count > 0;
+    out property <bool> mixed: root.enabled-count > 0 && root.enabled-count < root.available-count;
+    out property <bool> names-differ: root.name-mismatch-count > 0;
     in property <bool> compact;
-    callback toggled();
+    in property <bool> interactive: true;
+    callback toggled(bool);
+    callback summary-reported(int, bool, bool);
+    callback scroll-requested() -> EventResult;
 
-    min-height: root.compact ? 66px : 41px;
+    property <int> contribution-revision;
+    property <int> reported-count;
+    property <int> pending-available;
+    property <int> pending-enabled;
+    property <int> pending-name-mismatch;
+    property <int> available-count;
+    property <int> enabled-count;
+    property <int> name-mismatch-count;
+    property <string> name-summary: root.name-mismatch-count == 1 ? "2 different names" : "Different names";
+
+    changed selection-revision => {
+        root.reported-count = 0;
+        root.pending-available = 0;
+        root.pending-enabled = 0;
+        root.pending-name-mismatch = 0;
+        root.contribution-revision += 1;
+        if root.clips.length == 0 {
+            root.available-count = 0;
+            root.enabled-count = 0;
+            root.name-mismatch-count = 0;
+            root.summary-reported(root.selection-revision, false, false);
+        }
+    }
+
+    function report(revision: int, available: bool, enabled: bool, same-name: bool) {
+        if revision != root.contribution-revision { return; }
+        if available { root.pending-available += 1; }
+        if enabled { root.pending-enabled += 1; }
+        if !same-name { root.pending-name-mismatch += 1; }
+        root.reported-count += 1;
+        if root.reported-count == root.clips.length {
+            root.available-count = root.pending-available;
+            root.enabled-count = root.pending-enabled;
+            root.name-mismatch-count = root.pending-name-mismatch;
+            root.summary-reported(root.selection-revision, root.mixed, root.pending-name-mismatch > 0);
+        }
+    }
+
+    for contribution in root.clips : AudioTrackContribution {
+        video: contribution;
+        track-index: root.track-index;
+        revision: root.contribution-revision;
+        track-name: root.track-name;
+        reported(revision, available, enabled, same-name) => { root.report(revision, available, enabled, same-name); }
+    }
+
+    accessible-role: checkbox;
+    accessible-label: root.names-differ ? "Different audio, track " + root.track-number : root.track-name;
+    accessible-checkable: true;
+    accessible-checked: root.enabled && !root.mixed;
+    accessible-description: root.names-differ
+        ? (root.mixed ? root.name-summary + "; mixed values" : root.name-summary)
+        : root.mixed ? "Mixed values" : "";
+    accessible-enabled: root.interactive;
+    accessible-action-default => { root.toggle(); }
+
+    function toggle() {
+        if !root.interactive { return; }
+        root.toggled(root.mixed || !root.enabled);
+    }
+
+    min-height: root.compact ? Theme.audio-row-height-compact : Theme.audio-row-height;
     vertical-stretch: 0;
     background: row-touch.has-hover ? Theme.segment-hover : transparent;
 
@@ -24,7 +112,7 @@ export component AudioTrackRow inherits Rectangle {
         VerticalLayout {
             alignment: center;
             CheckSquare {
-                checked <=> root.enabled;
+                checked: root.enabled && !root.mixed;
                 interactive: false;
             }
         }
@@ -44,8 +132,8 @@ export component AudioTrackRow inherits Rectangle {
 
             Text {
                 width: root.compact ? root.width - 76px : Math.max(0px, root.width - 87px - format-text.preferred-width);
-                text: root.track-name;
-                color: Theme.text;
+                text: root.names-differ ? "Different audio" : root.track-name;
+                color: root.names-differ ? Theme.warning : Theme.text;
                 font-size: 13px;
                 wrap: word-wrap;
                 vertical-alignment: center;
@@ -53,8 +141,8 @@ export component AudioTrackRow inherits Rectangle {
             }
             format-text := Text {
                 width: root.compact ? root.width - 76px : self.preferred-width;
-                text: root.track-info;
-                color: Theme.text-dim;
+                text: root.names-differ ? (root.name-mismatch-count == 1 ? "2 names" : "Names differ") : root.track-info;
+                color: root.names-differ ? Theme.warning : Theme.text-dim;
                 font-size: 12px;
                 wrap: word-wrap;
                 vertical-alignment: center;
@@ -63,10 +151,9 @@ export component AudioTrackRow inherits Rectangle {
     }
 
     row-touch := ClickFocusArea {
+        enabled: root.interactive;
         mouse-cursor: pointer;
-        clicked => {
-            root.enabled = !root.enabled;
-            root.toggled();
-        }
+        clicked => { root.toggle(); }
+        scroll-event(event) => { return root.scroll-requested(); }
     }
 }

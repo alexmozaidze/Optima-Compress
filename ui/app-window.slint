@@ -3,6 +3,7 @@ import { ClipData, ClipState, EncodingOptions, EncodingField } from "clip-model.
 import { DropTarget } from "components/drop-target.slint";
 import { VideoList } from "components/video-list.slint";
 import { SelectionSettings } from "components/selection-settings.slint";
+import { ClickFocusArea } from "components/primitives.slint";
 
 export component AppWindow inherits Window {
     callback files-dropped(data-transfer);
@@ -18,40 +19,55 @@ export component AppWindow inherits Window {
 
     property <bool> tablet: root.width < 800px * (root.default-font-size / 13px);
     property <bool> phone: root.width < 480px * (root.default-font-size / 13px);
+    property <length> settings-height-limit: Math.min(settings-menu.preferred-height,
+        (root.height - header.height - selection-toolbar.height) * 0.8);
+    property <length> settings-height-minimum: Math.min(140px * (root.default-font-size / 13px), root.settings-height-limit);
+    property <length> requested-settings-height: settings-menu.preferred-height;
 
     out property <int> selected-count: video-list.selected-count;
-    out property <bool> mixed-options: video-list.mixed-options;
+    out property <bool> mixed-options: video-list.mixed-options || settings-menu.mixed-audio;
     in-out property <int> codec: 1;
+    in-out property <int> frame-rate: 0;
+    in-out property <string> custom-frame-rate: "60";
     in-out property <int> size: 0;
     in-out property <string> custom-size: "8";
     in-out property <int> resolution: 1;
     in-out property <string> custom-width: "1920";
     in-out property <string> custom-height: "1080";
-    in-out property <bool> track-game: true;
-    in-out property <bool> track-mic: true;
-    in-out property <bool> track-party: false;
 
     out property <EncodingOptions> default-options: {
         codec: 1, size: 0, custom-size: "8", resolution: 1,
+        frame-rate: 0, custom-frame-rate: "60",
         custom-width: "1920", custom-height: "1080",
-        track-game: true, track-mic: true, track-party: false,
     };
 
     in-out property <[ClipData]> clips: [
         {
             file-name: "ShadowPlay_Clip_01.mp4", source-path: "",
             metadata: "2:45 · 1080p · 142 MB", state: ClipState.waiting,
-            progress: 0, selected: false, options: root.default-options,
+            progress: 0, selected: false, audio-tracks: [], options: root.default-options,
         },
         {
             file-name: "Ranked_Highlights.mp4", source-path: "",
             metadata: "1:12 · 1080p · 86 MB", state: ClipState.compressing,
             progress: 0.58, selected: false, options: root.default-options,
+            audio-tracks: [
+                { name: "Game audio", info: "AAC · Stereo · 48 kHz", enabled: true },
+                { name: "Microphone", info: "AAC · Mono · 48 kHz", enabled: true },
+                { name: "Party chat", info: "Opus · Stereo · 48 kHz", enabled: false },
+                { name: "Music", info: "AAC · Stereo · 48 kHz", enabled: false },
+                { name: "Commentary", info: "AAC · Mono · 48 kHz", enabled: false },
+                { name: "System audio", info: "AAC · Stereo · 48 kHz", enabled: false },
+            ],
         },
         {
-            file-name: "Aces_Round_5.mp4", source-path: "",
+            file-name: "Friend_Clip.mp4", source-path: "",
             metadata: "0:30 · 720p · 18 MB", state: ClipState.finished,
             progress: 1, selected: false, options: root.default-options,
+            audio-tracks: [
+                { name: "Desktop audio", info: "AAC · Stereo · 48 kHz", enabled: true },
+                { name: "Microphone", info: "AAC · Mono · 44.1 kHz", enabled: true },
+            ],
         },
     ];
 
@@ -77,55 +93,188 @@ export component AppWindow inherits Window {
         }
     }
 
-    video-list := VideoList {
+    selection-toolbar := Rectangle {
         x: 0px;
         y: header.height;
         width: root.width;
-        height: root.height - header.height;
-        clips <=> root.clips;
-        phone: root.phone;
-        bottom-inset: root.selected-count > 0 || video-list.selecting ? settings-panel.height + 24px : 0px;
-        selection-changed(options) => {
-            if root.selected-count == 0 { return; }
-            root.codec = options.codec;
-            root.size = options.size;
-            root.custom-size = options.custom-size;
-            root.resolution = options.resolution;
-            root.custom-width = options.custom-width;
-            root.custom-height = options.custom-height;
-            root.track-game = options.track-game;
-            root.track-mic = options.track-mic;
-            root.track-party = options.track-party;
+        height: toolbar-content.min-height;
+
+        toolbar-content := HorizontalLayout {
+            padding-left: Theme.video-list-inset;
+            padding-right: Theme.video-list-inset;
+            padding-top: 6px;
+            padding-bottom: 6px;
+            spacing: 12px;
+
+            Text {
+                min-width: 0px;
+                preferred-width: 0px;
+                horizontal-stretch: 1;
+                text: root.selected-count > 0
+                    ? (root.selected-count == 1 ? "1 video selected" : root.selected-count + " videos selected")
+                    : (root.clips.length == 1 ? "1 video" : root.clips.length + " videos");
+                color: Theme.text;
+                font-size: 14px;
+                font-weight: 600;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            Rectangle {
+                width: clear-label.preferred-width + 12px;
+                height: Math.max(28px, clear-label.preferred-height + 8px);
+                background: clear-touch.has-hover ? Theme.card-bg : transparent;
+                border-radius: Theme.radius-control;
+                visible: root.selected-count > 0;
+
+                clear-label := Text {
+                    text: "Clear";
+                    color: Theme.text;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                clear-touch := ClickFocusArea {
+                    enabled: root.selected-count > 0;
+                    mouse-cursor: pointer;
+                    clicked => { video-list.clear-selection(); }
+                }
+            }
         }
     }
 
-    settings-panel := SelectionSettings {
-        x: root.phone ? 8px : 21px;
-        y: root.height - self.height - 12px;
-        width: root.width - 2 * self.x;
-        height: Math.min(self.preferred-height, (root.height - header.height) * 0.55);
-        visible: root.selected-count > 0 && !video-list.selecting;
-        selected-count: root.selected-count;
-        mixed-options: root.mixed-options;
-        tablet: root.tablet;
+    video-list := VideoList {
+        x: 0px;
+        y: selection-toolbar.y + selection-toolbar.height;
+        width: root.width;
+        height: settings-panel.y - self.y;
+        clips <=> root.clips;
         phone: root.phone;
-        codec <=> root.codec;
-        size <=> root.size;
-        custom-size <=> root.custom-size;
-        resolution <=> root.resolution;
-        custom-width <=> root.custom-width;
-        custom-height <=> root.custom-height;
-        track-game <=> root.track-game;
-        track-mic <=> root.track-mic;
-        track-party <=> root.track-party;
-        option-edited(field) => {
-            video-list.edit-options(field, {
-                codec: root.codec, size: root.size, custom-size: root.custom-size,
-                resolution: root.resolution, custom-width: root.custom-width, custom-height: root.custom-height,
-                track-game: root.track-game, track-mic: root.track-mic, track-party: root.track-party,
-            });
+        selection-changed(options) => {
+            if root.selected-count == 0 { return; }
+            root.codec = options.codec;
+            root.frame-rate = options.frame-rate;
+            root.custom-frame-rate = video-list.option-conflicts.custom-frame-rate ? "" : options.custom-frame-rate;
+            root.size = options.size;
+            root.custom-size = video-list.option-conflicts.custom-size ? "" : options.custom-size;
+            root.resolution = options.resolution;
+            root.custom-width = video-list.option-conflicts.custom-width ? "" : options.custom-width;
+            root.custom-height = video-list.option-conflicts.custom-height ? "" : options.custom-height;
         }
-        clear-selection => { video-list.clear-selection(); }
+    }
+
+    settings-panel := Rectangle {
+        x: 0px;
+        y: root.height - self.height;
+        width: root.width;
+        height: Math.max(root.settings-height-minimum, Math.min(root.requested-settings-height, root.settings-height-limit));
+
+        settings-menu := SelectionSettings {
+            width: parent.width;
+            height: parent.height;
+            selected-count: root.selected-count;
+            conflicts: video-list.option-conflicts;
+            clips: root.clips;
+            audio-tracks: video-list.audio-tracks;
+            selection-revision: video-list.selection-revision;
+            tablet: root.tablet;
+            phone: root.phone;
+            codec <=> root.codec;
+            frame-rate <=> root.frame-rate;
+            custom-frame-rate <=> root.custom-frame-rate;
+            size <=> root.size;
+            custom-size <=> root.custom-size;
+            resolution <=> root.resolution;
+            custom-width <=> root.custom-width;
+            custom-height <=> root.custom-height;
+            option-edited(field) => {
+                if root.selected-count == 0 { return; }
+                video-list.edit-options(field, {
+                    codec: root.codec, size: root.size, custom-size: root.custom-size,
+                    frame-rate: root.frame-rate, custom-frame-rate: root.custom-frame-rate,
+                    resolution: root.resolution, custom-width: root.custom-width, custom-height: root.custom-height,
+                });
+            }
+            audio-edited(index, enabled) => {
+                if root.selected-count == 0 { return; }
+                video-list.edit-audio(index, enabled);
+            }
+        }
+
+    }
+
+    empty-state := Rectangle {
+        x: video-list.x;
+        y: video-list.y;
+        width: video-list.width;
+        height: video-list.height;
+        visible: root.clips.length == 0;
+        background: Theme.window-bg;
+
+        VerticalLayout {
+            padding: 24px;
+            alignment: center;
+
+            HorizontalLayout {
+                alignment: center;
+                vertical-stretch: 0;
+
+                empty-message := Rectangle {
+                    width: Math.max(0px, Math.min(empty-state.width - 48px, 480px));
+                    height: empty-copy.min-height;
+
+                    empty-copy := VerticalLayout {
+                        width: parent.width;
+                        height: self.min-height;
+                        spacing: 10px;
+
+                        empty-title := Text {
+                            height: self.preferred-height;
+                            text: "No videos selected";
+                            color: Theme.text;
+                            font-size: 20px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                        }
+                        empty-instructions := Text {
+                            height: self.preferred-height;
+                            text: "Drag and drop videos here, then select one to adjust compression settings.\nCtrl-click to select multiple videos.";
+                            color: Theme.text-dim;
+                            font-size: 13px;
+                            horizontal-alignment: center;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    settings-resize := TouchArea {
+        x: 0px;
+        y: settings-panel.y - self.height / 2;
+        width: root.width;
+        height: 8px;
+        mouse-cursor: ns-resize;
+
+        moved => {
+            if !self.pressed { return; }
+            root.requested-settings-height = Math.max(root.settings-height-minimum,
+                Math.min(root.settings-height-limit, settings-panel.height - (self.mouse-y - self.pressed-y)));
+        }
+
+        Rectangle {
+            x: 0px;
+            y: parent.height / 2;
+            width: parent.width;
+            height: 1px;
+            background: settings-resize.has-hover || settings-resize.pressed ? Theme.accent : Theme.outline;
+        }
+        Rectangle {
+            width: 32px;
+            height: 3px;
+            border-radius: 1.5px;
+            background: settings-resize.has-hover || settings-resize.pressed ? Theme.accent : Theme.outline;
+        }
     }
 
     window-drop := DropTarget {

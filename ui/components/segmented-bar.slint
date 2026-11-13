@@ -6,6 +6,17 @@ component SegmentedOption inherits Rectangle {
     in property <string> label;
     in property <SharingPlatform> icon;
     in property <bool> selected;
+    in property <bool> enabled: true;
+    callback activated();
+
+    accessible-role: radio-button;
+    accessible-label: root.label;
+    accessible-checkable: true;
+    accessible-checked: root.selected;
+    accessible-enabled: root.enabled;
+    accessible-action-default => {
+        if root.enabled { root.activated(); }
+    }
 
     min-width: 0px;
     preferred-width: 0px;
@@ -50,6 +61,7 @@ export component SegmentedBar inherits Rectangle {
     in property <int> selected;
     in property <bool> vertical;
     in property <bool> attached-detail;
+    in property <bool> enabled: true;
     callback selected-changed(int);
 
     height: root.vertical ? root.options.length * 43px : 43px;
@@ -63,14 +75,19 @@ export component SegmentedBar inherits Rectangle {
     property <length> cell-height: root.vertical ? 43px : root.height;
 
     property <int> pill-index: 0;
+    property <bool> had-selection;
+    property <bool> slide-pill;
 
     init => {
+        root.had-selection = root.selected >= 0;
         if (root.selected >= 0) {
             root.pill-index = root.selected;
         }
     }
 
     changed selected => {
+        root.slide-pill = root.had-selection && root.selected >= 0;
+        root.had-selection = root.selected >= 0;
         if (root.selected >= 0) {
             root.pill-index = root.selected;
         }
@@ -93,7 +110,7 @@ export component SegmentedBar inherits Rectangle {
         }
     }
 
-    Rectangle {
+    selection-pill := Rectangle {
         x: root.vertical ? 3px : root.cell-width * root.pill-index + 3px;
         y: root.vertical ? root.cell-height * root.pill-index + 3px : 3px;
         width: root.cell-width - 6px;
@@ -102,8 +119,8 @@ export component SegmentedBar inherits Rectangle {
         background: Theme.segment-selected;
         opacity: root.selected >= 0 ? 1 : 0;
 
-        animate x { duration: 220ms; easing: ease-out; }
-        animate y { duration: 220ms; easing: ease-out; }
+        animate x { duration: root.slide-pill ? 220ms : 0ms; easing: ease-out; }
+        animate y { duration: root.slide-pill ? 220ms : 0ms; easing: ease-out; }
         animate opacity { duration: 160ms; easing: ease-out; }
     }
 
@@ -115,9 +132,12 @@ export component SegmentedBar inherits Rectangle {
         label: option;
         icon: i < root.icons.length ? root.icons[i] : SharingPlatform.none;
         selected: i == root.selected;
+        enabled: root.enabled;
+        activated => { root.selected-changed(i); }
     }
 
     touch := ClickFocusArea {
+        enabled: root.enabled;
         mouse-cursor: touch.pressed ? grabbing : pointer;
         clicked => {
             root.selected-changed(root.option-at-pointer);

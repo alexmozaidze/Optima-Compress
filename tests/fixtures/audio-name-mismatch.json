@@ -1,0 +1,58 @@
+{
+    "clips": [
+        {
+            "file-name": "OBS_Recording.mp4",
+            "source-path": "",
+            "metadata": "Audio name fixture",
+            "state": "waiting",
+            "progress": 0,
+            "selected": false,
+            "audio-tracks": [
+                { "name": "Game audio", "info": "AAC · Stereo · 48 kHz", "enabled": true },
+                { "name": "Microphone", "info": "AAC · Mono · 48 kHz", "enabled": true },
+                { "name": "Party chat", "info": "Opus · Stereo · 48 kHz", "enabled": false },
+                { "name": "Music", "info": "AAC · Stereo · 48 kHz", "enabled": false }
+            ],
+            "options": {
+                "codec": 1, "size": 0, "custom-size": "8", "resolution": 1,
+                "custom-width": "1920", "custom-height": "1080"
+            }
+        },
+        {
+            "file-name": "Friend_Clip.mp4",
+            "source-path": "",
+            "metadata": "Audio name fixture",
+            "state": "waiting",
+            "progress": 0,
+            "selected": false,
+            "audio-tracks": [
+                { "name": "Desktop audio", "info": "AAC · Stereo · 48 kHz", "enabled": true },
+                { "name": "Microphone", "info": "AAC · Mono · 48 kHz", "enabled": true },
+                { "name": "Party chat", "info": "Opus · Stereo · 48 kHz", "enabled": false },
+                { "name": "Game audio", "info": "AAC · Stereo · 48 kHz", "enabled": true }
+            ],
+            "options": {
+                "codec": 1, "size": 0, "custom-size": "8", "resolution": 1,
+                "custom-width": "1920", "custom-height": "1080"
+            }
+        },
+        {
+            "file-name": "Phone_Clip.mp4",
+            "source-path": "",
+            "metadata": "Audio name fixture",
+            "state": "waiting",
+            "progress": 0,
+            "selected": false,
+            "audio-tracks": [
+                { "name": "Headset mic", "info": "AAC · Stereo · 48 kHz", "enabled": true },
+                { "name": "Microphone", "info": "AAC · Mono · 48 kHz", "enabled": true },
+                { "name": "Party chat", "info": "Opus · Stereo · 48 kHz", "enabled": false },
+                { "name": "Game audio", "info": "AAC · Stereo · 48 kHz", "enabled": true }
+            ],
+            "options": {
+                "codec": 1, "size": 0, "custom-size": "8", "resolution": 1,
+                "custom-width": "1920", "custom-height": "1080"
+            }
+        }
+    ]
+}

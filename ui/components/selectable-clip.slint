@@ -5,6 +5,7 @@ export component SelectableClip inherits ClipRow {
     in property <int> index;
     in property <Point> list-offset;
     in property <EncodingOptions> options;
+    in property <int> audio-track-count;
     in property <SelectionRequest> request;
     in property <int> request-revision;
     callback pointer-pressed(int, Point, KeyboardModifiers);
@@ -12,6 +13,7 @@ export component SelectableClip inherits ClipRow {
     callback pointer-released();
     callback pointer-cancelled();
     callback row-updated(int, bool, EncodingOptions);
+    callback audio-updated(int, bool);
 
     property <int> saved-gesture: -1;
     property <bool> previous-selection;
@@ -28,7 +30,7 @@ export component SelectableClip inherits ClipRow {
     pure function next-selection() -> bool {
         if root.request.operation == SelectionOperation.clear { return false; }
         if root.request.operation == SelectionOperation.cancel { return root.previous-selection; }
-        if root.request.operation == SelectionOperation.edit { return root.selected; }
+        if root.request.operation == SelectionOperation.edit || root.request.operation == SelectionOperation.edit-audio { return root.selected; }
         if root.request.operation == SelectionOperation.box {
             let hit = root.intersects-box();
             if root.request.control { return root.previous-selection != hit; }
@@ -51,23 +53,25 @@ export component SelectableClip inherits ClipRow {
     pure function edited-options() -> EncodingOptions {
         return {
             codec: root.request.field == EncodingField.codec ? root.request.options.codec : root.options.codec,
+            frame-rate: root.request.field == EncodingField.frame-rate ? root.request.options.frame-rate : root.options.frame-rate,
+            custom-frame-rate: root.request.field == EncodingField.custom-frame-rate ? root.request.options.custom-frame-rate : root.options.custom-frame-rate,
             size: root.request.field == EncodingField.size ? root.request.options.size : root.options.size,
             custom-size: root.request.field == EncodingField.custom-size ? root.request.options.custom-size : root.options.custom-size,
             resolution: root.request.field == EncodingField.resolution ? root.request.options.resolution : root.options.resolution,
             custom-width: root.request.field == EncodingField.custom-width ? root.request.options.custom-width : root.options.custom-width,
             custom-height: root.request.field == EncodingField.custom-height ? root.request.options.custom-height : root.options.custom-height,
-            track-game: root.request.field == EncodingField.track-game ? root.request.options.track-game : root.options.track-game,
-            track-mic: root.request.field == EncodingField.track-mic ? root.request.options.track-mic : root.options.track-mic,
-            track-party: root.request.field == EncodingField.track-party ? root.request.options.track-party : root.options.track-party,
         };
     }
 
     changed request-revision => {
-        if root.saved-gesture != root.request.gesture && root.request.operation != SelectionOperation.edit && root.request.operation != SelectionOperation.clear {
+        if root.saved-gesture != root.request.gesture && root.request.operation != SelectionOperation.edit && root.request.operation != SelectionOperation.edit-audio && root.request.operation != SelectionOperation.clear {
             root.previous-selection = root.selected;
             root.saved-gesture = root.request.gesture;
         }
         let selected = root.next-selection();
+        if selected && root.request.operation == SelectionOperation.edit-audio && root.request.audio-track-index >= 0 && root.request.audio-track-index < root.audio-track-count {
+            root.audio-updated(root.request.audio-track-index, root.request.audio-track-enabled);
+        }
         let options = root.request.operation == SelectionOperation.edit && selected ? root.edited-options() : root.options;
         root.row-updated(root.index, selected, options);
     }
