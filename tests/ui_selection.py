@@ -353,6 +353,57 @@ class SelectionTests(AppWindowTests):
         self.assertEqual(self.checked_options("SelectionSettings::frame-rate-bar"), ["Custom"])
         self.assertEqual(self.value("SelectionSettings::frame-rate-input"), "48")
 
+    def visible_file_names(self):
+        elements = self.call("get_element_tree", elementHandle=self.root, maxElements=1000)["elements"]
+        return [entry["accessibleLabel"] for entry in elements if entry.get("accessibleRole") == "ListItem"]
+
+    def press_row_action(self, label):
+        elements = self.call("get_element_tree", elementHandle=self.root, maxElements=1000)["elements"]
+        action = next(entry for entry in elements if entry.get("accessibleLabel") == label)
+        self.click(action["handle"])
+
+    def test_delete_button_removes_that_video(self):
+        toolbar = self.find("AppWindow::selection-toolbar")
+        self.assertNotIn("video selected", self.labels(toolbar))
+        self.press_row_action("Delete ShadowPlay_Clip_01.mp4")
+        self.assertEqual(self.visible_file_names(), ["Ranked_Highlights.mp4", "Friend_Clip.mp4"])
+        self.assertIn("2 videos", self.labels(toolbar))
+
+    def test_deleting_a_selected_video_keeps_the_other_selection(self):
+        toolbar = self.find("AppWindow::selection-toolbar")
+        self.click(self.rows[0])
+        self.click(self.rows[1], control=True)
+        self.assertIn("2 videos selected", self.labels(toolbar))
+        self.press_row_action("Delete ShadowPlay_Clip_01.mp4")
+        self.assertIn("1 video selected", self.labels(toolbar))
+        rows = [
+            entry for entry in self.call("get_element_tree", elementHandle=self.root, maxElements=1000)["elements"]
+            if entry.get("accessibleRole") == "ListItem"
+        ]
+        self.assertEqual(
+            [(entry["accessibleLabel"], entry.get("accessibleItemSelected", False)) for entry in rows],
+            [("Ranked_Highlights.mp4", True), ("Friend_Clip.mp4", False)],
+        )
+
+    def test_deleting_every_video_reaches_the_empty_state(self):
+        list_scroll = self.find("VideoList::list-scroll")
+        for _ in range(self.expected_row_count):
+            self.call("scroll_element", elementHandle=list_scroll, deltaY=10000, deltaX=0)
+            elements = self.call("get_element_tree", elementHandle=self.root, maxElements=1000)["elements"]
+            delete = next(
+                entry["accessibleLabel"] for entry in elements
+                if entry.get("accessibleLabel", "").startswith("Delete ") and entry.get("accessibleRole") == "Button"
+            )
+            self.press_row_action(delete)
+        self.assertEqual(self.visible_file_names(), [])
+        self.assertIn("No videos selected", self.labels())
+        elements = self.call("get_element_tree", elementHandle=self.root, maxElements=1000)["elements"]
+        compress = next(
+            entry for entry in elements
+            if entry.get("accessibleLabel") == "Compress" and entry.get("accessibleRole") == "Button"
+        )
+        self.assertFalse(compress.get("accessibleEnabled", False))
+
     def test_selection_toolbar_sits_above_the_videos_not_in_the_settings(self):
         self.click(self.rows[1])
         toolbar = self.find("AppWindow::selection-toolbar")

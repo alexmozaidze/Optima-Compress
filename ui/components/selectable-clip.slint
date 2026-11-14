@@ -31,6 +31,7 @@ export component SelectableClip inherits ClipRow {
         if root.request.operation == SelectionOperation.clear { return false; }
         if root.request.operation == SelectionOperation.cancel { return root.previous-selection; }
         if root.request.operation == SelectionOperation.edit || root.request.operation == SelectionOperation.edit-audio { return root.selected; }
+        if root.request.operation == SelectionOperation.refresh { return root.selected; }
         if root.request.operation == SelectionOperation.box {
             let hit = root.intersects-box();
             if root.request.control { return root.previous-selection != hit; }
@@ -64,7 +65,7 @@ export component SelectableClip inherits ClipRow {
     }
 
     changed request-revision => {
-        if root.saved-gesture != root.request.gesture && root.request.operation != SelectionOperation.edit && root.request.operation != SelectionOperation.edit-audio && root.request.operation != SelectionOperation.clear {
+        if root.saved-gesture != root.request.gesture && root.request.operation != SelectionOperation.edit && root.request.operation != SelectionOperation.edit-audio && root.request.operation != SelectionOperation.clear && root.request.operation != SelectionOperation.refresh {
             root.previous-selection = root.selected;
             root.saved-gesture = root.request.gesture;
         }

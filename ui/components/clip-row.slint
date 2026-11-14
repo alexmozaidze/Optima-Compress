@@ -1,6 +1,6 @@
 import { Theme } from "../theme.slint";
 import { AudioTrack, ClipState } from "../clip-model.slint";
-import { Divider } from "primitives.slint";
+import { ClickFocusArea, Divider } from "primitives.slint";
 
 component VideoThumb inherits Rectangle {
     in property <ClipState> state: ClipState.waiting;
@@ -174,6 +174,8 @@ export component ClipRow inherits Rectangle {
     in property <bool> phone;
     in property <bool> selected;
 
+    callback delete-requested;
+
     accessible-role: list-item;
     accessible-label: root.file-name;
     accessible-item-selected: root.selected;
@@ -285,16 +287,25 @@ export component ClipRow inherits Rectangle {
                 alignment: center;
                 horizontal-stretch: 0;
 
-                Rectangle {
-                    width: 24px;
-                    height: 24px;
+                delete-button := Rectangle {
+                    width: 32px;
+                    height: 32px;
+                    border-radius: self.width / 2;
+                    background: delete-button-touch.has-hover ? Theme.danger.with-alpha(0.24) : Theme.danger.with-alpha(0.12);
 
                     Image {
                         width: 16px;
                         height: 16px;
-                        source: @image-url("../icons/more.svg");
+                        source: @image-url("../icons/trash.svg");
                         image-rendering: smooth;
-                        colorize: Theme.text;
+                        colorize: Theme.danger;
+                    }
+                    delete-button-touch := ClickFocusArea {
+                        mouse-cursor: pointer;
+                        accessible-role: button;
+                        accessible-label: "Delete " + root.file-name;
+                        accessible-action-default => { root.delete-requested(); }
+                        clicked => { root.delete-requested(); }
                     }
                 }
             }
