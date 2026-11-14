@@ -7,6 +7,7 @@ import { ClickFocusArea } from "components/primitives.slint";
 
 export component AppWindow inherits Window {
     callback files-dropped(data-transfer);
+    callback compress-requested;
 
     title: "QuickClip Compress";
     background: Theme.window-bg;
@@ -119,6 +120,31 @@ export component AppWindow inherits Window {
                     enabled: root.selected-count > 0;
                     mouse-cursor: pointer;
                     clicked => { video-list.clear-selection(); }
+                }
+            }
+            compress-button := Rectangle {
+                width: compress-label.preferred-width + 28px;
+                height: Math.max(28px, compress-label.preferred-height + 8px);
+                border-radius: Theme.radius-control;
+                background: compress-touch.has-hover ? Theme.accent-hover : Theme.accent;
+                opacity: root.clips.length > 0 ? 1 : 0.45;
+
+                compress-label := Text {
+                    text: "Compress";
+                    color: Theme.text-on-accent;
+                    font-size: 0.92rem;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                compress-touch := ClickFocusArea {
+                    enabled: root.clips.length > 0;
+                    mouse-cursor: pointer;
+                    accessible-role: button;
+                    accessible-label: "Compress";
+                    accessible-enabled: root.clips.length > 0;
+                    accessible-action-default => { root.compress-requested(); }
+                    clicked => { root.compress-requested(); }
                 }
             }
         }
