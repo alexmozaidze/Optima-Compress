@@ -37,10 +37,11 @@ export component SelectionSettings inherits Rectangle {
     property <int> audio-revision;
     property <int> audio-mixed-count;
     property <int> audio-name-conflict-count;
-    property <length> warning-height: audio-warning.height;
+    property <int> reported-audio-rows;
+    property <int> pending-mixed-count;
+    property <int> pending-name-conflict-count;
     property <length> last-warning-height;
     property <length> scroll-content-height: settings-scroll.content-height;
-    property <length> pending-scroll;
     // NOTE: keeps the ScrollView's content-height at or below its visible height once everything fits, so a
     // scrollbar cannot appear from fractional layout rounding.
     property <length> content-fit-slack: 1px;
@@ -57,26 +58,28 @@ export component SelectionSettings inherits Rectangle {
         ? size-column.header-height + size-bar.height + resolution-column.header-height + resolution-bar.height + size-resolution-row.spacing
         : Math.max(size-column.header-height + size-bar.height, resolution-column.header-height + resolution-bar.height);
 
+    // NOTE: the counts stay at their previous value until every row has reported, so the warning does
+    // not collapse to zero height between an edit and the reports that describe it.
     changed selection-revision => {
-        root.audio-mixed-count = 0;
-        root.audio-name-conflict-count = 0;
         root.audio-revision += 1;
+        root.reported-audio-rows = 0;
+        root.pending-mixed-count = 0;
+        root.pending-name-conflict-count = 0;
+        if root.audio-tracks.length == 0 {
+            root.audio-mixed-count = 0;
+            root.audio-name-conflict-count = 0;
+        }
     }
 
     // NOTE: the warning sits above the tracks and appears asynchronously, so without this the whole
     // audio list shifts by its height when a second video makes the track names differ. The scroll is
-    // adjusted once the taller content is laid out, otherwise the Flickable clamps the write.
-    changed warning-height => {
-        if settings-scroll.content-y < 0px {
-            root.pending-scroll += root.warning-height - root.last-warning-height;
-        }
-        root.last-warning-height = root.warning-height;
-    }
-
+    // adjusted once the taller content is laid out, otherwise the Flickable clamps the write. Shrinking
+    // needs no adjustment: the Flickable already clamps the scroll into the shorter range.
     changed scroll-content-height => {
-        if root.pending-scroll != 0px {
-            let delta = root.pending-scroll;
-            root.pending-scroll = 0px;
+        let warning = audio-warning.height;
+        let delta = warning - root.last-warning-height;
+        root.last-warning-height = warning;
+        if delta > 0px && settings-scroll.content-y < 0px {
             let limit = Math.max(0px, settings-scroll.content-height - settings-scroll.visible-height);
             settings-scroll.content-y = Math.max(-limit, Math.min(0px, settings-scroll.content-y - delta));
         }
@@ -84,8 +87,13 @@ export component SelectionSettings inherits Rectangle {
 
     function report-audio-summary(revision: int, mixed: bool, names-differ: bool) {
         if revision != root.audio-revision { return; }
-        if mixed { root.audio-mixed-count += 1; }
-        if names-differ { root.audio-name-conflict-count += 1; }
+        if mixed { root.pending-mixed-count += 1; }
+        if names-differ { root.pending-name-conflict-count += 1; }
+        root.reported-audio-rows += 1;
+        if root.reported-audio-rows == root.audio-tracks.length {
+            root.audio-mixed-count = root.pending-mixed-count;
+            root.audio-name-conflict-count = root.pending-name-conflict-count;
+        }
     }
 
     preferred-height: settings-content.padding-top + settings-content.padding-bottom + root.top-border-height

@@ -1270,26 +1270,59 @@ class AudioNameOverflowTests(ViewerTests):
     def panel_top(self):
         return self.call("get_element_properties", elementHandle=self.find("AppWindow::settings-panel"))["absolutePosition"]["y"]
 
+    def content_height(self):
+        return self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-content"))["size"]["height"]
+
+    def wait_for_content_height(self, predicate):
+        deadline = time.monotonic() + 2
+        while True:
+            height = self.content_height()
+            if predicate(height):
+                return height
+            self.assertLess(time.monotonic(), deadline, f"Content height stayed {height}")
+            time.sleep(0.02)
+
     def test_warning_appearing_keeps_the_audio_rows_in_place(self):
         self.click(self.rows[0])
-        self.scroll_settings(-10000)
+        self.call("scroll_element", elementHandle=self.find("SelectionSettings::settings-scroll"), deltaY=-10000, deltaX=0)
         self.assertLess(
             self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-content"))["absolutePosition"]["y"],
             self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-scroll"))["absolutePosition"]["y"],
         )
         before = self.track_positions()
         panel = self.panel_top()
+        shorter = self.content_height()
         self.click(self.rows[1], control=True)
+        taller = self.wait_for_content_height(lambda height: height > shorter)
         labels = [track["accessibleLabel"] for track in self.menu_controls() if track.get("accessibleRole") == "Checkbox"]
         self.assertIn("Different audio, track 1", labels)
         self.assertEqual(self.track_positions(), before)
         self.assertAlmostEqual(self.panel_top(), panel, delta=0.5)
         self.click(self.rows[1], control=True)
+        self.wait_for_content_height(lambda height: height < taller)
         self.assertNotIn(
             "Different audio, track 1",
             [track["accessibleLabel"] for track in self.menu_controls() if track.get("accessibleRole") == "Checkbox"],
         )
         self.assertEqual(self.track_positions(), before)
+
+    def test_toggling_a_track_leaves_the_menu_where_it_is(self):
+        self.click(self.rows[0])
+        self.click(self.rows[1], control=True)
+        self.wait_for_content_height(lambda height: height > 0)
+        self.call("scroll_element", elementHandle=self.find("SelectionSettings::settings-scroll"), deltaY=-45, deltaX=0)
+        content = self.find("SelectionSettings::settings-content")
+        before = self.call("get_element_properties", elementHandle=content)
+        track = next(t for t in self.menu_controls() if t.get("accessibleRole") == "Checkbox" and t["accessibleLabel"] == "Microphone")
+        self.call("invoke_accessibility_action", elementHandle=track["handle"], action="Default_")
+        deadline = time.monotonic() + 2
+        while self.call("get_element_properties", elementHandle=track["handle"]).get("accessibleChecked", False):
+            self.assertLess(time.monotonic(), deadline, "The track did not toggle")
+            time.sleep(0.02)
+        after = self.call("get_element_properties", elementHandle=content)
+        self.assertEqual(after["absolutePosition"]["y"], before["absolutePosition"]["y"])
+        self.assertEqual(after["size"]["height"], before["size"]["height"])
+
 
 
 def stop_virtual_display(process):
