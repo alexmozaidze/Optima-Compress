@@ -28,7 +28,11 @@ export component SelectionSettings inherits Rectangle {
     callback audio-edited(int, bool);
     out property <bool> mixed-audio: root.audio-mixed-count > 0;
     out property <bool> audio-names-differ: root.audio-name-conflict-count > 0;
-    out property <length> content-height: settings-content.min-height + root.top-border-height + root.content-fit-slack;
+    // NOTE: extra audio rows stay in the scrolling content but do not raise the menu's height, so the
+    // panel never grows to fit more than the reserved rows. The warning is excluded too: it is part of
+    // the scrolling content, and letting it lift the panel would move the menu whenever it appears.
+    out property <length> menu-height-limit: settings-content.min-height + root.top-border-height + root.content-fit-slack
+        - Math.max(0px, audio-rows.min-height - root.minimum-audio-height) - audio-warning.height;
 
     property <length> page-width: settings-scroll.visible-width - 32px;
     property <length> setting-width: root.tablet ? root.page-width : (root.page-width - 22px) / 2;

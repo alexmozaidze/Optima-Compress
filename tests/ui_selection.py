@@ -799,7 +799,8 @@ class ViewerTests(AppWindowTests):
 class AudioOverflowTests(ViewerTests):
     fixture = ROOT / "tests/fixtures/audio-overflow.json"
 
-    def test_audio_area_reserves_five_rows_and_grows_to_fit_all_tracks(self):
+    def test_audio_area_holds_every_track_inside_a_fixed_five_row_menu(self):
+        heights = []
         for index, count in [(0, 0), (2, 1), (1, 9)]:
             with self.subTest(track_count=count):
                 self.click(self.rows[index])
@@ -809,6 +810,10 @@ class AudioOverflowTests(ViewerTests):
                 self.assertAlmostEqual(
                     audio["size"]["height"], expected_rows * AUDIO_ROW_HEIGHT + expected_rows - 1, delta=0.1,
                 )
+                heights.append(
+                    self.call("get_element_properties", elementHandle=self.find("AppWindow::settings-panel"))["size"]["height"]
+                )
+        self.assertAlmostEqual(max(heights), min(heights), delta=1)
 
     def test_wheel_over_audio_scrolls_the_menu_not_the_tracks_within_the_section(self):
         self.click(self.rows[1])
@@ -1151,17 +1156,25 @@ class MenuHeightTests(FooterResponsiveTests):
         window = self.call("get_element_properties", elementHandle=self.root)
         videos = self.call("get_element_properties", elementHandle=self.find("AppWindow::video-list"))
         content = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-content"))
+        rows = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::audio-rows"))
+        warning = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::audio-warning"))
         panel = self.call("get_element_properties", elementHandle=self.find("AppWindow::settings-panel"))
         window_limit = (window["size"]["height"] - videos["absolutePosition"]["y"]) * 0.8
-        self.assertAlmostEqual(panel["size"]["height"], min(content["size"]["height"] + 1, window_limit), delta=1.5)
+        extra_rows = max(0.0, rows["size"].get("height", 0) - (5 * AUDIO_ROW_HEIGHT + 4))
+        content_limit = content["size"]["height"] + 2 - extra_rows - warning["size"].get("height", 0)
+        self.assertAlmostEqual(panel["size"]["height"], min(content_limit, window_limit), delta=1.5)
 
-    def test_resize_maximum_grows_for_long_audio_and_shrinks_for_short_audio(self):
+    def test_resize_maximum_stops_at_five_audio_rows(self):
         heights = []
         for index in [2, 1]:
             self.click(self.rows[index])
             heights.append(self.expand_menu()["size"]["height"])
             self.assert_menu_matches_content_limit()
-        self.assertGreater(heights[1], heights[0])
+        self.assertAlmostEqual(heights[1], heights[0], delta=1)
+        self.assertGreater(
+            self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-content"))["size"]["height"],
+            heights[1],
+        )
         self.click(self.rows[2])
         self.assert_menu_matches_content_limit()
 

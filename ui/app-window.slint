@@ -19,7 +19,7 @@ export component AppWindow inherits Window {
 
     property <bool> tablet: root.width < 61.54rem;
     property <bool> phone: root.width < 36.92rem;
-    property <length> settings-height-limit: Math.min(settings-menu.content-height,
+    property <length> settings-height-limit: Math.min(settings-menu.menu-height-limit,
         (root.height - header.height - selection-toolbar.height) * 0.8);
     property <length> settings-height-minimum: Math.min(10.77rem, root.settings-height-limit);
     property <length> requested-settings-height: settings-menu.preferred-height;
