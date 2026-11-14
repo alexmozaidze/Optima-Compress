@@ -77,6 +77,8 @@ export component SelectableClip inherits ClipRow {
     }
 
     row-touch := TouchArea {
+        z: -1;
+
         pointer-event(event) => {
             if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
                 root.pointer-pressed(root.index, { x: root.x + root.list-offset.x + self.mouse-x, y: root.y + root.list-offset.y + self.mouse-y }, event.modifiers);

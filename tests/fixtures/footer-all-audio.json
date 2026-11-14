@@ -1,0 +1,31 @@
+{
+    "viewport-width": 320,
+    "viewport-height": 1100,
+    "text-size": 14,
+    "fixture-clips": [
+        {
+            "file-name": "All_Audio_Tracks.mp4",
+            "source-path": "",
+            "metadata": "All nine tracks enabled",
+            "state": "waiting",
+            "progress": 0,
+            "selected": false,
+            "audio-tracks": [
+                { "name": "Game audio", "info": "AAC · Stereo · 48 kHz", "enabled": true },
+                { "name": "Microphone", "info": "AAC · Mono · 48 kHz", "enabled": true },
+                { "name": "Party chat", "info": "Opus · Stereo · 48 kHz", "enabled": true },
+                { "name": "Music", "info": "AAC · Stereo · 48 kHz", "enabled": true },
+                { "name": "Commentary", "info": "AAC · Mono · 48 kHz", "enabled": true },
+                { "name": "System audio", "info": "AAC · Stereo · 48 kHz", "enabled": true },
+                { "name": "Alerts", "info": "AAC · Mono · 48 kHz", "enabled": true },
+                { "name": "Voice chat", "info": "Opus · Mono · 48 kHz", "enabled": true },
+                { "name": "Sound effects", "info": "AAC · Stereo · 48 kHz", "enabled": true }
+            ],
+            "options": {
+                "codec": 0, "frame-rate": 0, "custom-frame-rate": "60",
+                "size": 0, "custom-size": "8", "resolution": 1,
+                "custom-width": "1920", "custom-height": "1080"
+            }
+        }
+    ]
+}

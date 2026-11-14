@@ -7,6 +7,11 @@ export component Divider inherits Rectangle {
 
 export component ClickFocusArea inherits TouchArea {
     focus-target := FocusScope {
+        // NOTE: focusing a partly clipped control's full bounds would scroll it into view.
+        x: root.mouse-x;
+        y: root.mouse-y;
+        width: 0px;
+        height: 0px;
         focus-on-click: false;
         focus-on-tab-navigation: false;
     }

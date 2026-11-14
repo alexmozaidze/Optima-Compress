@@ -27,6 +27,7 @@ export component SelectionSettings inherits Rectangle {
     callback audio-edited(int, bool);
     out property <bool> mixed-audio: root.audio-mixed-count > 0;
     out property <bool> audio-names-differ: root.audio-name-conflict-count > 0;
+    out property <length> content-height: settings-content.min-height + root.top-border-height + root.content-fit-slack;
 
     property <length> page-width: settings-scroll.visible-width - 32px;
     property <length> setting-width: root.tablet ? root.page-width : (root.page-width - 22px) / 2;
@@ -38,16 +39,12 @@ export component SelectionSettings inherits Rectangle {
     // NOTE: keeps the ScrollView's content-height at or below its visible height once everything fits, so a
     // scrollbar cannot appear from fractional layout rounding.
     property <length> content-fit-slack: 1px;
-    property <int> max-visible-audio-tracks: 4;
+    property <int> minimum-audio-rows: 5;
     property <length> audio-row-height: root.tablet ? Theme.audio-row-height-compact : Theme.audio-row-height;
-    property <length> audio-height-limit: root.max-visible-audio-tracks * root.audio-row-height
-        + (root.max-visible-audio-tracks - 1) * 1px + 16px;
+    property <length> minimum-audio-height: root.minimum-audio-rows * root.audio-row-height
+        + (root.minimum-audio-rows - 1) * 1px;
     property <length> reserved-custom-height: frame-rate-fields.height + (root.tablet
         ? size-fields.height + resolution-fields.height : Math.max(size-fields.height, resolution-fields.height));
-    property <length> revealed-custom-height: frame-rate-reveal.height + (root.tablet
-        ? size-reveal.height + resolution-reveal.height : Math.max(size-reveal.height, resolution-reveal.height));
-    property <length> audio-list-height: root.audio-height-limit
-        + root.reserved-custom-height - root.revealed-custom-height;
     property <length> codec-row-base-height: root.tablet
         ? codec-column.header-height + codec-bar.height + frame-rate-column.header-height + frame-rate-bar.height + codec-row.spacing
         : Math.max(codec-column.header-height + codec-bar.height, frame-rate-column.header-height + frame-rate-bar.height);
@@ -69,7 +66,7 @@ export component SelectionSettings inherits Rectangle {
 
     preferred-height: settings-content.padding-top + settings-content.padding-bottom + root.top-border-height
         + root.codec-row-base-height + setting-row-gap.height + root.size-resolution-row-base-height
-        + root.reserved-custom-height + audio-heading.min-height + root.audio-height-limit
+        + root.reserved-custom-height + audio-heading.min-height + root.minimum-audio-height
         + root.content-fit-slack;
     background: Theme.window-bg;
     border-radius: 0px;
@@ -315,7 +312,7 @@ export component SelectionSettings inherits Rectangle {
                         }
 
                         audio-list := Rectangle {
-                            height: root.audio-list-height;
+                            height: audio-warning.height + Math.max(root.minimum-audio-height, audio-rows.min-height);
                             background: Theme.audio-list-bg;
                             border-radius: 7px;
                             vertical-stretch: 0;
@@ -359,55 +356,29 @@ export component SelectionSettings inherits Rectangle {
                                 }
                             }
 
-                            audio-scroll := ScrollView {
+                            audio-rows := VerticalLayout {
+                                x: 0px;
                                 y: audio-warning.height;
                                 width: parent.width;
-                                height: Math.max(0px, parent.height - self.y);
-                                horizontal-scrollbar-policy: always-off;
-                                vertical-scrollbar-policy: as-needed;
-                                content-width: self.visible-width;
-                                content-height: audio-rows.min-height;
+                                height: self.min-height;
+                                spacing: 0px;
 
-                                audio-rows := VerticalLayout {
-                                    x: 0px;
-                                    y: 0px;
-                                    width: audio-scroll.visible-width;
-                                    height: self.min-height;
+                                for track[index] in root.audio-tracks : VerticalLayout {
                                     spacing: 0px;
 
-                                    for track[index] in root.audio-tracks : VerticalLayout {
-                                        spacing: 0px;
-
-                                        if index > 0 : Divider { }
-                                        audio-track := AudioTrackRow {
-                                            interactive: root.editable;
-                                            width: audio-rows.width;
-                                            compact: root.tablet;
-                                            track-number: index + 1;
-                                            track-name: track.name;
-                                            track-info: track.info;
-                                            clips: root.clips;
-                                            track-index: index;
-                                            selection-revision: root.audio-revision;
-                                            toggled(enabled) => { root.audio-edited(index, enabled); }
-                                            summary-reported(revision, mixed, names-differ) => { root.report-audio-summary(revision, mixed, names-differ); }
-                                            scroll-requested => {
-                                                let bottom-overflow = audio-scroll.absolute-position.y + audio-scroll.height
-                                                    + settings-content.padding-bottom
-                                                    - settings-scroll.absolute-position.y - settings-scroll.visible-height;
-                                                if bottom-overflow > 0.5px {
-                                                    settings-scroll.content-y -= bottom-overflow;
-                                                    return accept;
-                                                }
-                                                let top-overflow = settings-scroll.absolute-position.y
-                                                    + settings-content.padding-top - audio-scroll.absolute-position.y;
-                                                if top-overflow > 0.5px {
-                                                    settings-scroll.content-y += top-overflow;
-                                                    return accept;
-                                                }
-                                                return reject;
-                                            }
-                                        }
+                                    if index > 0 : Divider { }
+                                    audio-track := AudioTrackRow {
+                                        interactive: root.editable;
+                                        width: audio-rows.width;
+                                        compact: root.tablet;
+                                        track-number: index + 1;
+                                        track-name: track.name;
+                                        track-info: track.info;
+                                        clips: root.clips;
+                                        track-index: index;
+                                        selection-revision: root.audio-revision;
+                                        toggled(enabled) => { root.audio-edited(index, enabled); }
+                                        summary-reported(revision, mixed, names-differ) => { root.report-audio-summary(revision, mixed, names-differ); }
                                     }
                                 }
                             }

@@ -189,10 +189,14 @@ export component VideoList inherits Rectangle {
                     progress: clip.progress;
                     selected: clip.selected;
                     options: clip.options;
+                    audio-tracks: clip.audio-tracks;
+                    audio-revision: root.selection-revision;
                     audio-track-count: clip.audio-tracks.length;
                     request: root.request;
                     request-revision: root.request-revision;
                     encoding-codec: clip.options.codec == 0 ? "H.264" : "AV1";
+                    encoding-frame-rate: clip.options.frame-rate == 3 ? clip.options.custom-frame-rate
+                        : ["60", "30", "15"][clip.options.frame-rate];
                     encoding-resolution: clip.options.resolution == 3 ? clip.options.custom-width + " × " + clip.options.custom-height
                         : ["480p", "720p", "1080p"][clip.options.resolution];
                     encoding-size: clip.options.size == 3 ? clip.options.custom-size + " MB"

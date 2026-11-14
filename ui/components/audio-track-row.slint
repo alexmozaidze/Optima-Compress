@@ -35,7 +35,6 @@ export component AudioTrackRow inherits Rectangle {
     in property <bool> interactive: true;
     callback toggled(bool);
     callback summary-reported(int, bool, bool);
-    callback scroll-requested() -> EventResult;
 
     property <int> contribution-revision;
     property <int> reported-count;
@@ -154,6 +153,5 @@ export component AudioTrackRow inherits Rectangle {
         enabled: root.interactive;
         mouse-cursor: pointer;
         clicked => { root.toggle(); }
-        scroll-event(event) => { return root.scroll-requested(); }
     }
 }

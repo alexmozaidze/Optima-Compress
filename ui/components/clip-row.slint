@@ -1,5 +1,6 @@
 import { Theme } from "../theme.slint";
-import { ClipState } from "../clip-model.slint";
+import { AudioTrack, ClipState } from "../clip-model.slint";
+import { Divider } from "primitives.slint";
 
 component VideoThumb inherits Rectangle {
     in property <ClipState> state: ClipState.waiting;
@@ -18,45 +19,143 @@ component VideoThumb inherits Rectangle {
     }
 }
 
-component EncodingSummary inherits HorizontalLayout {
-    in property <string> codec;
-    in property <string> resolution;
-    in property <string> target-size;
+component AudioTrackBadge inherits Rectangle {
+    in property <AudioTrack> track;
+    in property <int> track-number;
+    in property <int> revision;
+    callback reported(int, int, length);
 
-    min-width: 0px;
-    spacing: 14px;
+    property <length> diameter: Math.max(22px, number.preferred-width + 10px, number.preferred-height + 6px);
+    property <int> reported-revision: -1;
+    property <int> reported-count;
+    property <length> reported-width;
 
-    VerticalLayout {
-        alignment: center;
-        horizontal-stretch: 0;
+    function report() {
+        let count = root.track.enabled ? 1 : 0;
+        let width = root.track.enabled ? root.diameter + 4px : 0px;
+        let same-revision = root.reported-revision == root.revision;
+        root.reported(root.revision, count - (same-revision ? root.reported-count : 0),
+            width - (same-revision ? root.reported-width : 0px));
+        root.reported-revision = root.revision;
+        root.reported-count = count;
+        root.reported-width = width;
+    }
 
-        Image {
-            width: 20px;
-            height: 20px;
-            source: @image-url("../icons/arrow-right.svg");
-            image-rendering: smooth;
-            colorize: Theme.text-dim;
+    init => { root.report(); }
+    changed revision => { root.report(); }
+    changed track => { root.report(); }
+    changed diameter => { root.report(); }
+
+    width: root.track.enabled ? root.diameter + 4px : 0px;
+    // NOTE: hidden badges keep the audio line height stable when every track is disabled.
+    height: root.diameter;
+    visible: root.track.enabled;
+    accessible-role: text;
+    accessible-label: "Audio track " + root.track-number + ": " + root.track.name;
+
+    Rectangle {
+        x: 0px;
+        width: Math.max(0px, parent.width - 4px);
+        height: parent.height;
+        border-radius: self.height / 2;
+        border-width: 1px;
+        border-color: Theme.text-dim.with-alpha(0.35);
+
+        number := Text {
+            text: "\{root.track-number}";
+            color: Theme.text;
+            font-size: 0.85rem;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        Tooltip {
+            text: @markdown("Track \{root.track-number}: \{root.track.name}");
         }
     }
-    VerticalLayout {
+}
+
+component EncodingFooter inherits GridLayout {
+    in property <string> codec;
+    in property <string> frame-rate;
+    in property <string> resolution;
+    in property <string> target-size;
+    in property <[AudioTrack]> audio-tracks;
+    in property <int> enabled-audio-count;
+    in property <length> audio-badges-width;
+    in property <int> audio-revision;
+    in property <bool> phone;
+    callback audio-reported(int, int, length);
+
+    min-width: 0px;
+    spacing-horizontal: 16px;
+    spacing-vertical: 6px;
+
+    FlexboxLayout {
+        row: 0;
+        col: 0;
         min-width: 0px;
-        preferred-width: 0px;
         horizontal-stretch: 1;
-        alignment: center;
-        spacing: 4px;
+        alignment: start;
+        cross-axis-alignment: center;
+        spacing-horizontal: 16px;
+        spacing-vertical: 6px;
 
         Text {
-            text: root.codec + " · " + root.resolution;
+            text: root.codec;
             color: Theme.text;
-            font-size: 1.08rem;
+            font-size: 0.92rem;
             font-weight: 600;
-            wrap: word-wrap;
         }
         Text {
-            text: root.target-size + " target";
+            text: root.frame-rate + " FPS";
             color: Theme.text-dim;
             font-size: 0.92rem;
-            wrap: word-wrap;
+        }
+        Text {
+            text: root.resolution;
+            color: Theme.text-dim;
+            font-size: 0.92rem;
+        }
+        Text {
+            text: root.target-size;
+            color: Theme.text-dim;
+            font-size: 0.92rem;
+        }
+    }
+    FlexboxLayout {
+        row: root.phone ? 1 : 0;
+        col: root.phone ? 0 : 1;
+        min-width: 0px;
+        preferred-width: audio-icon.width + root.audio-badges-width + audio-state.preferred-width;
+        max-width: root.width;
+        horizontal-stretch: 0;
+        alignment: start;
+        cross-axis-alignment: center;
+        spacing: 0px;
+
+        audio-icon := Rectangle {
+            width: 26px;
+            height: 22px;
+
+            Image {
+                width: 16px;
+                height: 16px;
+                source: @image-url("../icons/speaker.svg");
+                image-rendering: smooth;
+                colorize: Theme.text-dim;
+            }
+        }
+        audio-state := Text {
+            text: root.enabled-audio-count > 0 ? "" : root.audio-tracks.length == 0 ? "No audio" : "Off";
+            color: Theme.text-dim;
+            font-size: 0.85rem;
+        }
+        for track[index] in root.audio-tracks : AudioTrackBadge {
+            track: track;
+            track-number: index + 1;
+            revision: root.audio-revision;
+            reported(revision, count, width) => { root.audio-reported(revision, count, width); }
         }
     }
 }
@@ -65,8 +164,11 @@ export component ClipRow inherits Rectangle {
     in property <string> file-name;
     in property <string> metadata;
     in property <string> encoding-codec;
+    in property <string> encoding-frame-rate;
     in property <string> encoding-resolution;
     in property <string> encoding-size;
+    in property <[AudioTrack]> audio-tracks;
+    in property <int> audio-revision;
     in property <ClipState> state: ClipState.waiting;
     in property <float> progress: 0;
     in property <bool> phone;
@@ -79,6 +181,19 @@ export component ClipRow inherits Rectangle {
     property <float> bounded-progress: Math.max(0, Math.min(1, root.progress));
     property <color> status-color: root.state == ClipState.finished ? Theme.success
         : root.state == ClipState.compressing ? Theme.accent : Theme.text-dim;
+    property <int> enabled-audio-count;
+    property <length> audio-badges-width;
+    property <int> contribution-revision;
+
+    function refresh-audio-state() {
+        root.enabled-audio-count = 0;
+        root.audio-badges-width = 0px;
+        root.contribution-revision += 1;
+    }
+
+    init => { root.refresh-audio-state(); }
+    changed audio-tracks => { root.refresh-audio-state(); }
+    changed audio-revision => { root.refresh-audio-state(); }
 
     background: Theme.card-bg;
     border-radius: 7.7px;
@@ -96,100 +211,109 @@ export component ClipRow inherits Rectangle {
         border-bottom-right-radius: self.border-top-right-radius;
     }
 
-    HorizontalLayout {
+    VerticalLayout {
         min-width: 0px;
         padding-left: 14px;
         padding-right: 14px;
         padding-top: 10px;
         padding-bottom: 10px;
-        spacing: 12px;
+        spacing: 10px;
 
-        VerticalLayout {
-            alignment: center;
-
-            VideoThumb {
-                width: root.phone ? 80px : 112px;
-                height: self.width * 9 / 16;
-                state: root.state;
-            }
-        }
-        details := VerticalLayout {
+        HorizontalLayout {
             min-width: 0px;
-            preferred-width: 0px;
-            horizontal-stretch: 1;
-            alignment: center;
-            spacing: 4px;
+            spacing: 12px;
 
-            Text {
-                height: self.preferred-height;
-                text: root.file-name;
-                color: Theme.text;
-                font-size: 1.23rem;
-                font-weight: 600;
-                overflow: elide;
+            VerticalLayout {
+                alignment: center;
+
+                VideoThumb {
+                    width: root.phone ? 80px : 112px;
+                    height: self.width * 9 / 16;
+                    state: root.state;
+                }
             }
-            Text {
-                height: self.preferred-height;
-                text: root.metadata;
-                color: Theme.text-dim;
-                font-size: 0.92rem;
-                wrap: word-wrap;
-            }
-            HorizontalLayout {
-                spacing: 7px;
+            details := VerticalLayout {
+                min-width: 0px;
+                preferred-width: 0px;
+                horizontal-stretch: 1;
+                alignment: center;
+                spacing: 4px;
 
-                if root.state != ClipState.compressing : VerticalLayout {
-                    alignment: center;
-
-                    Image {
-                        width: 12px;
-                        height: 12px;
-                        source: root.state == ClipState.finished ? @image-url("../icons/check-circle.svg")
-                            : @image-url("../icons/clock.svg");
-                        image-rendering: smooth;
-                        colorize: root.status-color;
-                    }
+                Text {
+                    height: self.preferred-height;
+                    text: root.file-name;
+                    color: Theme.text;
+                    font-size: 1.23rem;
+                    font-weight: 600;
+                    overflow: elide;
                 }
                 Text {
-                    preferred-width: 0px;
-                    horizontal-stretch: 1;
-                    text: root.state == ClipState.finished ? "Ready to copy"
-                        : root.state == ClipState.compressing ? "Compressing · " + Math.round(root.bounded-progress * 100) + "%"
-                        : "Waiting for compression";
-                    color: root.status-color;
-                    font-size: 1rem;
+                    height: self.preferred-height;
+                    text: root.metadata;
+                    color: Theme.text-dim;
+                    font-size: 0.92rem;
                     wrap: word-wrap;
                 }
-            }
+                HorizontalLayout {
+                    spacing: 7px;
 
-            if root.phone : EncodingSummary {
-                codec: root.encoding-codec;
-                resolution: root.encoding-resolution;
-                target-size: root.encoding-size;
+                    if root.state != ClipState.compressing : VerticalLayout {
+                        alignment: center;
+
+                        Image {
+                            width: 12px;
+                            height: 12px;
+                            source: root.state == ClipState.finished ? @image-url("../icons/check-circle.svg")
+                                : @image-url("../icons/clock.svg");
+                            image-rendering: smooth;
+                            colorize: root.status-color;
+                        }
+                    }
+                    Text {
+                        preferred-width: 0px;
+                        horizontal-stretch: 1;
+                        text: root.state == ClipState.finished ? "Ready to copy"
+                            : root.state == ClipState.compressing ? "Compressing · " + Math.round(root.bounded-progress * 100) + "%"
+                            : "Waiting for compression";
+                        color: root.status-color;
+                        font-size: 1rem;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                horizontal-stretch: 0;
+
+                Rectangle {
+                    width: 24px;
+                    height: 24px;
+
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        source: @image-url("../icons/more.svg");
+                        image-rendering: smooth;
+                        colorize: Theme.text;
+                    }
+                }
             }
         }
-        if !root.phone : EncodingSummary {
-            preferred-width: 0px;
-            horizontal-stretch: 1;
+        Divider { }
+        EncodingFooter {
             codec: root.encoding-codec;
+            frame-rate: root.encoding-frame-rate;
             resolution: root.encoding-resolution;
             target-size: root.encoding-size;
-        }
-        VerticalLayout {
-            alignment: center;
-            horizontal-stretch: 0;
-
-            Rectangle {
-                width: 24px;
-                height: 24px;
-
-                Image {
-                    width: 16px;
-                    height: 16px;
-                    source: @image-url("../icons/more.svg");
-                    image-rendering: smooth;
-                    colorize: Theme.text;
-                }
+            audio-tracks: root.audio-tracks;
+            enabled-audio-count: root.enabled-audio-count;
+            audio-badges-width: root.audio-badges-width;
+            audio-revision: root.contribution-revision;
+            phone: root.phone;
+            audio-reported(revision, count, width) => {
+                if revision != root.contribution-revision { return; }
+                root.enabled-audio-count += count;
+                root.audio-badges-width += width;
             }
         }
     }

@@ -157,6 +157,11 @@ class AppWindowTests(unittest.TestCase):
         elements = self.call("get_element_tree", elementHandle=element or self.root, maxElements=1000)["elements"]
         return [entry.get("accessibleLabel", "") for entry in elements]
 
+    def assert_encoding(self, row, codec, resolution, size, frame_rate="60 FPS"):
+        labels = self.labels(row)
+        for value in [codec, frame_rate, resolution, size]:
+            self.assertIn(value, labels)
+
     def choose(self, bar, label):
         self.scroll_settings(10000)
         elements = self.call("get_element_tree", elementHandle=self.find(bar), maxElements=100)["elements"]
@@ -221,40 +226,61 @@ class AppWindowTests(unittest.TestCase):
 
     def audio_tracks(self):
         self.scroll_settings(-10000)
+        audio = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::audio-list"))
+        viewport = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-scroll"))
+        if audio["absolutePosition"]["y"] < viewport["absolutePosition"]["y"]:
+            self.scroll_settings(viewport["absolutePosition"]["y"] - audio["absolutePosition"]["y"])
         return [control for control in self.menu_controls() if control.get("accessibleRole") == "Checkbox"]
 
     def audio_track(self, label):
-        return next(track for track in self.audio_tracks() if track.get("accessibleLabel") == label)
+        tracks = self.audio_tracks()
+        viewport = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-scroll"))
+        deadline = time.monotonic() + 2
+        while True:
+            match = next((track for track in tracks if track.get("accessibleLabel") == label), None)
+            if match is not None:
+                return match
+            self.assertLess(time.monotonic(), deadline, f"Audio track did not become visible: {label}")
+            self.scroll_settings(-viewport["size"]["height"] / 2)
+            tracks = [control for control in self.menu_controls() if control.get("accessibleRole") == "Checkbox"]
 
-    def assert_audio_viewport(self, expected_labels):
+    def assert_audio_menu_scrolling(self, expected_labels):
         self.scroll_settings(10000)
         codec = self.find("SelectionSettings::codec-bar")
-        self.scroll_settings(-10000)
-        scroll = self.find("SelectionSettings::audio-scroll")
-        self.call("scroll_element", elementHandle=scroll, deltaY=10000, deltaX=0)
-        first = self.audio_tracks()
+        audio = self.find("SelectionSettings::audio-list")
+        rows = self.find("SelectionSettings::audio-rows")
+        first = [control for control in self.menu_controls() if control.get("accessibleRole") == "Checkbox"]
         self.assertEqual([track["accessibleLabel"] for track in first], expected_labels[:len(first)])
         self.assertEqual(first[0]["accessibleLabel"], expected_labels[0])
-        viewport = self.call("get_element_properties", elementHandle=scroll)
-        self.assertLess(
-            viewport["size"]["height"],
-            len(expected_labels) * first[0]["size"]["height"] + len(expected_labels) - 1,
-        )
+        section = self.call("get_element_properties", elementHandle=audio)
+        rows_before = self.call("get_element_properties", elementHandle=rows)
+        viewport = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-scroll"))
         codec_position = self.call("get_element_properties", elementHandle=codec)["absolutePosition"]
+        top = max(section["absolutePosition"]["y"], viewport["absolutePosition"]["y"])
+        bottom = min(
+            section["absolutePosition"]["y"] + section["size"]["height"],
+            viewport["absolutePosition"]["y"] + viewport["size"]["height"],
+        )
         position = {
-            "x": viewport["absolutePosition"].get("x", 0) + viewport["size"]["width"] / 2,
-            "y": viewport["absolutePosition"]["y"] + viewport["size"]["height"] / 2,
+            "x": section["absolutePosition"].get("x", 0) + section["size"]["width"] / 2,
+            "y": (top + bottom) / 2,
         }
         self.call("dispatch_pointer_scroll", windowHandle=self.window, position=position, deltaY=-10000, deltaX=0)
-        last = self.audio_tracks()
+        last = [control for control in self.menu_controls() if control.get("accessibleRole") == "Checkbox"]
         self.assertEqual([track["accessibleLabel"] for track in last], expected_labels[-len(last):])
         self.assertEqual(last[-1]["accessibleLabel"], expected_labels[-1])
         self.assertNotEqual(
             [(track["accessibleLabel"], track["absolutePosition"]["y"]) for track in first],
             [(track["accessibleLabel"], track["absolutePosition"]["y"]) for track in last],
         )
-        self.assertEqual(self.call("get_element_properties", elementHandle=codec)["absolutePosition"], codec_position)
-        self.assertEqual(self.call("get_element_properties", elementHandle=scroll)["size"], viewport["size"])
+        self.assertLess(self.call("get_element_properties", elementHandle=codec)["absolutePosition"]["y"], codec_position["y"])
+        section_after = self.call("get_element_properties", elementHandle=audio)
+        rows_after = self.call("get_element_properties", elementHandle=rows)
+        self.assertEqual(section_after["size"], section["size"])
+        self.assertAlmostEqual(
+            rows_after["absolutePosition"]["y"] - section_after["absolutePosition"]["y"],
+            rows_before["absolutePosition"]["y"] - section["absolutePosition"]["y"], delta=0.1,
+        )
 
     def box(self, start=None, target_row=None, target_x=400, **modifiers):
         start = start or self.rows[2]
@@ -271,6 +297,12 @@ class AppWindowTests(unittest.TestCase):
         self.call("drag_element", elementHandle=start, target={"x": target_x, "y": target_y}, modifiers=modifiers)
 
 class SelectionTests(AppWindowTests):
+    def environment(self, port):
+        environment = super().environment(port)
+        if self._testMethodName == "test_highlight_still_slides_between_selected_options":
+            environment["SLINT_SLOW_ANIMATIONS"] = "4"
+        return environment
+
     def test_frame_rate_sits_to_the_right_of_codec(self):
         self.click(self.rows[0])
         self.scroll_settings(10000)
@@ -297,8 +329,10 @@ class SelectionTests(AppWindowTests):
         self.click(self.rows[0])
         shown = self.call("get_element_properties", elementHandle=panel)
         self.assertEqual(shown["size"]["width"], initial["size"]["width"])
-        self.assertAlmostEqual(shown["size"]["height"], initial["size"]["height"], delta=1)
-        self.assertAlmostEqual(shown["absolutePosition"]["y"], initial["absolutePosition"]["y"], delta=1)
+        self.assertAlmostEqual(
+            shown["absolutePosition"]["y"] + shown["size"]["height"],
+            initial["absolutePosition"]["y"] + initial["size"]["height"], delta=1,
+        )
         self.assertEqual(self.checked_options("SelectionSettings::frame-rate-bar"), ["Custom"])
         self.assertEqual(self.value("SelectionSettings::frame-rate-input"), "45")
         self.call("set_element_value", elementHandle=self.find("SelectionSettings::frame-rate-input"), value="48")
@@ -405,7 +439,7 @@ class SelectionTests(AppWindowTests):
         self.click(self.rows[0])
         self.assertEqual(self.checked_options("SelectionSettings::codec-bar"), ["Compatibility (H.264)"])
 
-    def test_selection_enables_the_menu_and_custom_fields_without_resizing_it(self):
+    def test_selection_enables_custom_fields_and_keeps_the_menu_anchored(self):
         panel = self.find("AppWindow::settings-panel")
         initial = self.call("get_element_properties", elementHandle=panel)
         self.click(self.rows[0])
@@ -423,8 +457,8 @@ class SelectionTests(AppWindowTests):
         self.assertEqual(self.find("AppWindow::settings-panel"), panel)
         self.assert_no_segmented_selection()
         expanded = self.call("get_element_properties", elementHandle=panel)
-        self.assertEqual(expanded["size"], initial["size"])
-        self.assertEqual(expanded["absolutePosition"], initial["absolutePosition"])
+        self.assertEqual(expanded["size"]["width"], initial["size"]["width"])
+        self.assertGreater(expanded["size"]["height"], 0)
         self.assertAlmostEqual(
             expanded["absolutePosition"]["y"] + expanded["size"]["height"],
             initial["absolutePosition"]["y"] + initial["size"]["height"],
@@ -435,8 +469,8 @@ class SelectionTests(AppWindowTests):
         for control in self.menu_controls():
             self.assertTrue(control.get("accessibleEnabled", False), control)
         self.call("set_element_value", elementHandle=self.find("SelectionSettings::size-input"), value="16")
-        self.assertIn("16 MB target", self.labels(self.rows[0]))
-        self.assertIn("20 MB target", self.labels(self.rows[1]))
+        self.assert_encoding(self.rows[0], "H.264", "1920 × 1080", "16 MB")
+        self.assert_encoding(self.rows[1], "H.264", "720p", "20 MB")
 
     def test_menu_leaves_the_video_list_scrollable(self):
         videos = self.call("get_element_properties", elementHandle=self.find("AppWindow::video-list"))
@@ -448,23 +482,16 @@ class SelectionTests(AppWindowTests):
             videos["absolutePosition"]["y"] + videos["size"]["height"],
         )
 
-    def test_menu_reserves_full_content_height_without_scrolling_the_settings(self):
+    def test_long_audio_scrolls_without_resizing_the_menu(self):
         panel = self.find("AppWindow::settings-panel")
-        initial = self.call("get_element_properties", elementHandle=panel)
         self.click(self.rows[1])
         shown = self.call("get_element_properties", elementHandle=panel)
-        self.assertEqual(shown["size"], initial["size"])
-        self.assertEqual(shown["absolutePosition"], initial["absolutePosition"])
-        audio = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::audio-scroll"))
-        self.assertLessEqual(
-            audio["absolutePosition"]["y"] + audio["size"]["height"] + 31.5,
-            shown["absolutePosition"]["y"] + shown["size"]["height"],
-        )
-        codec = self.find("SelectionSettings::codec-bar")
-        before = self.call("get_element_properties", elementHandle=codec)
+        content = self.find("SelectionSettings::settings-content")
+        before = self.call("get_element_properties", elementHandle=content)
         self.scroll_settings(-10000)
-        after = self.call("get_element_properties", elementHandle=codec)
-        self.assertEqual(after["absolutePosition"], before["absolutePosition"])
+        after = self.call("get_element_properties", elementHandle=content)
+        self.assertLess(after["absolutePosition"]["y"], before["absolutePosition"]["y"])
+        self.assertEqual(self.call("get_element_properties", elementHandle=panel)["size"], shown["size"])
 
     def test_row_selection_highlight_fades_in_and_out(self):
         self.click(self.rows[0])
@@ -544,21 +571,17 @@ class SelectionTests(AppWindowTests):
         self.choose("SelectionSettings::codec-bar", "Quality (AV1)")
         self.choose("SelectionSettings::size-bar", "Custom")
         self.call("set_element_value", elementHandle=self.find("SelectionSettings::size-input"), value="12")
-        self.assertIn("AV1 · 720p", self.labels(self.rows[0]))
-        self.assertIn("12 MB target", self.labels(self.rows[0]))
-        self.assertIn("H.264 · 720p", self.labels(self.rows[1]))
-        self.assertIn("20 MB target", self.labels(self.rows[1]))
-        self.assertIn("AV1 · 720p", self.labels(self.rows[2]))
-        self.assertIn("12 MB target", self.labels(self.rows[2]))
+        self.assert_encoding(self.rows[0], "AV1", "720p", "12 MB")
+        self.assert_encoding(self.rows[1], "H.264", "720p", "20 MB")
+        self.assert_encoding(self.rows[2], "AV1", "720p", "12 MB")
         self.click(self.rows[1])
         self.click(self.rows[2], control=True)
         self.assertEqual(self.checked_options("SelectionSettings::codec-bar"), [])
         self.assertEqual(self.checked_options("SelectionSettings::resolution-bar"), ["720p"])
         self.choose("SelectionSettings::resolution-bar", "1080p")
-        self.assertIn("AV1 · 720p", self.labels(self.rows[0]))
-        self.assertIn("H.264 · 1080p", self.labels(self.rows[1]))
-        self.assertIn("AV1 · 1080p", self.labels(self.rows[2]))
-        self.assertIn("12 MB target", self.labels(self.rows[2]))
+        self.assert_encoding(self.rows[0], "AV1", "720p", "12 MB")
+        self.assert_encoding(self.rows[1], "H.264", "1080p", "20 MB")
+        self.assert_encoding(self.rows[2], "AV1", "1080p", "12 MB")
 
     def test_conflicting_segments_are_unselected_without_clearing_shared_settings(self):
         self.click(self.rows[0])
@@ -572,8 +595,8 @@ class SelectionTests(AppWindowTests):
         for bar in ["codec-bar", "size-bar", "resolution-bar"]:
             self.assertEqual(self.checked_options(f"SelectionSettings::{bar}"), [])
         self.click(self.rows[2], control=True)
-        self.assertIn("AV1 · 1080p", self.labels(self.rows[0]))
-        self.assertIn("H.264 · 720p", self.labels(self.rows[1]))
+        self.assert_encoding(self.rows[0], "AV1", "1080p", "25 MB")
+        self.assert_encoding(self.rows[1], "H.264", "720p", "20 MB")
         self.choose("SelectionSettings::codec-bar", "Compatibility (H.264)")
         self.assertEqual(self.checked_options("SelectionSettings::codec-bar"), ["Compatibility (H.264)"])
         self.assertEqual(self.checked_options("SelectionSettings::size-bar"), [])
@@ -608,6 +631,8 @@ class SelectionTests(AppWindowTests):
 
     def test_highlight_still_slides_between_selected_options(self):
         self.click(self.rows[0])
+        pill, selected = self.codec_highlight()
+        self.wait_for_opacity(pill["handle"], 1)
         self.choose("SelectionSettings::codec-bar", "Quality (AV1)")
         pill, selected = self.codec_highlight()
         self.assertIsNotNone(selected)
@@ -634,15 +659,12 @@ class SelectionTests(AppWindowTests):
         self.call("set_element_value", elementHandle=self.find("SelectionSettings::custom-width"), value="1600")
         self.assertEqual(self.value("SelectionSettings::custom-width"), "1600")
         self.assertEqual(self.value("SelectionSettings::custom-height"), "")
-        self.assertIn("H.264 · 1600 × 720", self.labels(self.rows[0]))
-        self.assertIn("H.264 · 1600 × 1080", self.labels(self.rows[1]))
-        self.assertIn("12 MB target", self.labels(self.rows[0]))
-        self.assertIn("8 MB target", self.labels(self.rows[1]))
+        self.assert_encoding(self.rows[0], "H.264", "1600 × 720", "12 MB")
+        self.assert_encoding(self.rows[1], "H.264", "1600 × 1080", "8 MB")
         self.call("set_element_value", elementHandle=self.find("SelectionSettings::size-input"), value="16")
         self.call("set_element_value", elementHandle=self.find("SelectionSettings::custom-height"), value="900")
         for row in self.rows[:2]:
-            self.assertIn("H.264 · 1600 × 900", self.labels(row))
-            self.assertIn("16 MB target", self.labels(row))
+            self.assert_encoding(row, "H.264", "1600 × 900", "16 MB")
 
     def test_initial_audio_viewport_matches_the_selected_video(self):
         for index, labels in [
@@ -660,52 +682,46 @@ class SelectionTests(AppWindowTests):
     def test_audio_list_remains_visible_for_a_selected_video_without_tracks(self):
         self.click(self.rows[0])
         self.assertIn("AUDIO", self.labels())
-        scroll = self.find("SelectionSettings::audio-scroll")
-        empty = self.call("get_element_properties", elementHandle=scroll)
+        audio = self.find("SelectionSettings::audio-list")
+        empty = self.call("get_element_properties", elementHandle=audio)
         self.assertGreater(empty["size"]["height"], 0)
         self.assertEqual(self.audio_tracks(), [])
         self.click(self.rows[0])
         self.assertIn("AUDIO", self.labels())
         self.assertEqual(self.audio_tracks(), [])
-        self.assertEqual(self.call("get_element_properties", elementHandle=scroll)["size"], empty["size"])
+        self.assertEqual(self.call("get_element_properties", elementHandle=audio)["size"], empty["size"])
         self.click(self.rows[1])
         self.assertTrue(self.audio_tracks())
-        self.assertEqual(self.call("get_element_properties", elementHandle=scroll)["size"], empty["size"])
+        self.assertGreater(self.call("get_element_properties", elementHandle=audio)["size"]["height"], empty["size"]["height"])
         self.click(self.find("AppWindow::clear-touch"))
         self.assertIn("AUDIO", self.labels())
         self.assert_no_segmented_selection()
 
-    def test_demo_audio_scrolls_without_moving_the_settings(self):
+    def test_demo_audio_scrolls_with_the_menu(self):
         self.click(self.rows[1])
-        self.assert_audio_viewport(["Game audio", "Microphone", "Party chat", "Music", "Commentary", "System audio", "Alerts", "Voice chat", "Sound effects"])
+        self.assert_audio_menu_scrolling(["Game audio", "Microphone", "Party chat", "Music", "Commentary", "System audio", "Alerts", "Voice chat", "Sound effects"])
         commentary = self.audio_track("Commentary")
         self.click(commentary["handle"])
         self.assertTrue(self.audio_track("Commentary")["accessibleChecked"])
 
-    def test_audio_uses_the_space_reserved_for_collapsed_custom_fields(self):
-        self.click(self.rows[1])
-        panel = self.call("get_element_properties", elementHandle=self.find("AppWindow::settings-panel"))
-        audio = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::audio-scroll"))
-        gap = panel["absolutePosition"]["y"] + panel["size"]["height"] - audio["absolutePosition"]["y"] - audio["size"]["height"]
-        self.assertAlmostEqual(gap, 32, delta=1.5)
-        self.assertAlmostEqual(self.audio_tracks()[0]["size"]["height"], AUDIO_ROW_HEIGHT, delta=0.1)
+    def test_custom_fields_do_not_reduce_the_five_row_audio_minimum(self):
+        self.click(self.rows[0])
+        audio = self.find("SelectionSettings::audio-list")
+        for bar in ["frame-rate-bar", "size-bar", "resolution-bar"]:
+            self.choose(f"SelectionSettings::{bar}", "Custom")
+            size = self.call("get_element_properties", elementHandle=audio)["size"]
+            self.assertAlmostEqual(size["height"], 5 * AUDIO_ROW_HEIGHT + 4, delta=0.1)
 
-    def test_audio_container_stays_visible_while_tracks_scroll(self):
+    def test_menu_scroll_reaches_the_last_audio_track_with_bottom_padding(self):
         self.click(self.rows[1])
-        audio = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::audio-scroll"))
+        self.scroll_settings(-10000)
+        audio = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::audio-list"))
         settings = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-scroll"))
         bottom = settings["absolutePosition"]["y"] + settings["size"]["height"]
-        self.assertLessEqual(audio["absolutePosition"]["y"] + audio["size"]["height"], bottom - 31.5)
-        position = {
-            "x": audio["absolutePosition"]["x"] + 100,
-            "y": min(bottom - 2, audio["absolutePosition"]["y"] + 10),
-        }
-        self.call("dispatch_pointer_scroll", windowHandle=self.window, position=position, deltaY=-10000, deltaX=0)
-        audio = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::audio-scroll"))
-        self.assertLessEqual(audio["absolutePosition"]["y"] + audio["size"]["height"], bottom - 31.5)
-        self.assertGreaterEqual(audio["absolutePosition"]["y"], settings["absolutePosition"]["y"])
+        self.assertAlmostEqual(bottom - audio["absolutePosition"]["y"] - audio["size"]["height"], 32, delta=0.5)
         tracks = [control for control in self.menu_controls() if control.get("accessibleRole") == "Checkbox"]
         self.assertTrue(tracks)
+        self.assertEqual(tracks[-1]["accessibleLabel"], "Sound effects")
         for track in tracks:
             self.assertAlmostEqual(track["size"]["height"], AUDIO_ROW_HEIGHT, delta=0.1)
 
@@ -769,7 +785,7 @@ class ViewerTests(AppWindowTests):
 
     def environment(self, port):
         environment = {key: value for key, value in os.environ.items() if key not in ["WAYLAND_DISPLAY", "WAYLAND_SOCKET"]}
-        environment.update(DISPLAY=self.display, SLINT_BACKEND="winit-software", SLINT_MCP_PORT=str(port))
+        environment.update(DISPLAY=self.display, SLINT_BACKEND="winit-software", SLINT_MCP_PORT=str(port), SLINT_STYLE="cosmic-dark")
         return environment
 
     def setUp(self):
@@ -783,11 +799,93 @@ class ViewerTests(AppWindowTests):
 class AudioOverflowTests(ViewerTests):
     fixture = ROOT / "tests/fixtures/audio-overflow.json"
 
-    def test_audio_list_scrolls_and_edits_beyond_four_tracks(self):
+    def test_audio_area_reserves_five_rows_and_grows_to_fit_all_tracks(self):
+        for index, count in [(0, 0), (2, 1), (1, 9)]:
+            with self.subTest(track_count=count):
+                self.click(self.rows[index])
+                self.scroll_settings(-10000)
+                audio = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::audio-list"))
+                expected_rows = max(5, count)
+                self.assertAlmostEqual(
+                    audio["size"]["height"], expected_rows * AUDIO_ROW_HEIGHT + expected_rows - 1, delta=0.1,
+                )
+
+    def test_wheel_over_audio_scrolls_the_menu_not_the_tracks_within_the_section(self):
         self.click(self.rows[1])
-        self.assert_audio_viewport(["Game audio", "Microphone", "Party chat", "Music", "Commentary", "System audio", "Alerts", "Voice chat", "Sound effects"])
-        scroll = self.find("SelectionSettings::audio-scroll")
-        self.call("scroll_element", elementHandle=scroll, deltaY=-10000, deltaX=0)
+        self.scroll_settings(10000)
+        audio_handle = self.find("SelectionSettings::audio-list")
+        rows_handle = self.find("SelectionSettings::audio-rows")
+        content_handle = self.find("SelectionSettings::settings-content")
+        audio = self.call("get_element_properties", elementHandle=audio_handle)
+        rows = self.call("get_element_properties", elementHandle=rows_handle)
+        content = self.call("get_element_properties", elementHandle=content_handle)
+        viewport = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-scroll"))
+        top = max(audio["absolutePosition"]["y"], viewport["absolutePosition"]["y"])
+        bottom = min(
+            audio["absolutePosition"]["y"] + audio["size"]["height"],
+            viewport["absolutePosition"]["y"] + viewport["size"]["height"],
+        )
+        self.assertGreater(bottom, top)
+        self.call(
+            "dispatch_pointer_scroll", windowHandle=self.window,
+            position={"x": audio["absolutePosition"]["x"] + audio["size"]["width"] / 2, "y": (top + bottom) / 2},
+            deltaY=-10000, deltaX=0,
+        )
+        audio_after = self.call("get_element_properties", elementHandle=audio_handle)
+        rows_after = self.call("get_element_properties", elementHandle=rows_handle)
+        content_after = self.call("get_element_properties", elementHandle=content_handle)
+        self.assertLess(content_after["absolutePosition"]["y"], content["absolutePosition"]["y"])
+        self.assertLess(audio_after["absolutePosition"]["y"], audio["absolutePosition"]["y"])
+        self.assertAlmostEqual(
+            rows_after["absolutePosition"]["y"] - audio_after["absolutePosition"]["y"],
+            rows["absolutePosition"]["y"] - audio["absolutePosition"]["y"], delta=0.1,
+        )
+        tracks = [element for element in self.menu_controls() if element.get("accessibleRole") == "Checkbox"]
+        self.assertEqual(tracks[-1]["accessibleLabel"], "Sound effects")
+
+    def test_toggling_partly_visible_tracks_preserves_menu_scroll_position(self):
+        self.click(self.rows[1])
+        window = self.call("get_element_properties", elementHandle=self.root)
+        self.call(
+            "drag_element", elementHandle=self.find("AppWindow::settings-resize"),
+            target={"x": window["size"]["width"] / 2, "y": window["size"]["height"] - 5 * AUDIO_ROW_HEIGHT},
+        )
+        scroll = self.find("SelectionSettings::settings-scroll")
+        for offset in [0, AUDIO_ROW_HEIGHT / 3]:
+            with self.subTest(scroll_offset=offset):
+                self.audio_tracks()
+                self.scroll_settings(-offset)
+                viewport = self.call("get_element_properties", elementHandle=scroll)
+                top = viewport["absolutePosition"]["y"]
+                bottom = top + viewport["size"]["height"]
+                tracks = [element for element in self.menu_controls() if element.get("accessibleRole") == "Checkbox"]
+                clipped = [
+                    track for track in tracks
+                    if top < track["absolutePosition"]["y"] + track["size"]["height"] / 2 < bottom
+                    and (track["absolutePosition"]["y"] < top
+                        or track["absolutePosition"]["y"] + track["size"]["height"] > bottom)
+                ]
+                self.assertTrue(clipped, "The fixture must expose a clickable, partly clipped audio row")
+                track = clipped[0]
+                rows = self.find("SelectionSettings::audio-rows")
+                settings = self.find("SelectionSettings::settings-content")
+                rows_before = self.call("get_element_properties", elementHandle=rows)["absolutePosition"]["y"]
+                settings_before = self.call("get_element_properties", elementHandle=settings)["absolutePosition"]["y"]
+                self.click(track["handle"])
+                changed = self.call("get_element_properties", elementHandle=track["handle"])
+                self.assertNotEqual(changed.get("accessibleChecked", False), track.get("accessibleChecked", False))
+                self.assertAlmostEqual(
+                    self.call("get_element_properties", elementHandle=rows)["absolutePosition"]["y"],
+                    rows_before, delta=0.1,
+                )
+                self.assertAlmostEqual(
+                    self.call("get_element_properties", elementHandle=settings)["absolutePosition"]["y"],
+                    settings_before, delta=0.1,
+                )
+
+    def test_menu_scrolls_and_edits_audio_beyond_five_tracks(self):
+        self.click(self.rows[1])
+        self.assert_audio_menu_scrolling(["Game audio", "Microphone", "Party chat", "Music", "Commentary", "System audio", "Alerts", "Voice chat", "Sound effects"])
         commentary = self.audio_track("Commentary")
         self.assertFalse(commentary.get("accessibleChecked", False))
         self.click(commentary["handle"])
@@ -804,6 +902,222 @@ class ViewerSelectionStateTests(ViewerTests):
     test_populated_list_never_shows_the_empty_notice = SelectionTests.test_populated_list_never_shows_the_empty_notice
     test_deselection_dims_settings_without_hiding_or_resizing_them = SelectionTests.test_deselection_dims_settings_without_hiding_or_resizing_them
     test_empty_selection_keeps_settings_visible_and_disabled = SelectionTests.test_empty_selection_keeps_settings_visible_and_disabled
+
+
+class FooterTests(ViewerTests):
+    fixture = ROOT / "tests/fixtures/audio-overflow.json"
+
+    def row_elements(self, row):
+        self.reveal_row(row)
+        return self.call("get_element_tree", elementHandle=row, maxElements=300)["elements"]
+
+    def badges(self, row):
+        return [
+            element for element in self.row_elements(row)
+            if element.get("accessibleLabel", "").startswith("Audio track ")
+        ]
+
+    def test_initial_enabled_tracks_do_not_also_say_audio_is_off(self):
+        self.assertIn("No audio", self.labels(self.rows[0]))
+        self.assertEqual(
+            [badge["accessibleLabel"] for badge in self.badges(self.rows[1])],
+            ["Audio track 1: Game audio", "Audio track 2: Microphone", "Audio track 8: Voice chat"],
+        )
+        for row in self.rows[1:]:
+            labels = self.labels(row)
+            self.assertNotIn("Off", labels)
+            self.assertNotIn("No audio", labels)
+
+    def test_audio_badges_share_one_line_when_the_desktop_footer_has_room(self):
+        elements = self.row_elements(self.rows[1])
+        codec = next(element for element in elements if element.get("accessibleLabel") == "H.264")
+        badges = self.badges(self.rows[1])
+        self.assertEqual(len(badges), 3)
+        centers = [
+            element["absolutePosition"]["y"] + element["size"]["height"] / 2
+            for element in [codec, *badges]
+        ]
+        self.assertLess(max(centers) - min(centers), 1)
+
+    def test_clicking_an_audio_badge_still_selects_its_video(self):
+        self.click(self.badges(self.rows[1])[0]["handle"])
+        self.assertEqual(self.selected(), [False, True, False])
+        self.click(self.badges(self.rows[2])[0]["handle"], control=True)
+        self.assertEqual(self.selected(), [False, True, True])
+
+    def test_audio_badges_follow_edits_without_changing_other_videos(self):
+        self.click(self.rows[1])
+        self.click(self.audio_track("Music")["handle"])
+        self.assertEqual(
+            [badge["accessibleLabel"] for badge in self.badges(self.rows[1])],
+            ["Audio track 1: Game audio", "Audio track 2: Microphone", "Audio track 4: Music", "Audio track 8: Voice chat"],
+        )
+        self.assertEqual([badge["accessibleLabel"] for badge in self.badges(self.rows[2])], ["Audio track 1: Game audio"])
+        self.click(self.rows[2])
+        self.click(self.audio_track("Game audio")["handle"])
+        self.assertEqual(self.badges(self.rows[2]), [])
+        self.assertIn("Off", self.labels(self.rows[2]))
+        self.click(self.audio_track("Game audio")["handle"])
+        self.assertEqual([badge["accessibleLabel"] for badge in self.badges(self.rows[2])], ["Audio track 1: Game audio"])
+        self.assertNotIn("Off", self.labels(self.rows[2]))
+
+    def test_footer_shows_per_video_custom_frame_rates(self):
+        self.click(self.rows[0])
+        self.choose("SelectionSettings::frame-rate-bar", "Custom")
+        self.call("set_element_value", elementHandle=self.find("SelectionSettings::frame-rate-input"), value="48")
+        self.assert_encoding(self.rows[0], "H.264", "720p", "20 MB", "48 FPS")
+        self.assert_encoding(self.rows[1], "H.264", "720p", "20 MB", "60 FPS")
+        self.click(self.rows[1], control=True)
+        self.choose("SelectionSettings::frame-rate-bar", "30")
+        for row in self.rows[:2]:
+            self.assert_encoding(row, "H.264", "720p", "20 MB", "30 FPS")
+        self.assert_encoding(self.rows[2], "H.264", "720p", "20 MB", "60 FPS")
+
+    def assert_last_audio_track_keeps_row_height(self):
+        self.click(self.rows[2])
+        tracks = self.audio_tracks()
+        self.assertTrue(tracks)
+        for track in tracks[:-1]:
+            if track.get("accessibleChecked", False):
+                self.click(track["handle"])
+        self.assertEqual(len(self.badges(self.rows[2])), 1)
+        before = self.call("get_element_properties", elementHandle=self.rows[2])["size"]
+        self.click(tracks[-1]["handle"])
+        off_size = self.call("get_element_properties", elementHandle=self.rows[2])["size"]
+        self.assertIn("Off", self.labels(self.rows[2]))
+        self.assertEqual(self.badges(self.rows[2]), [])
+        self.assertEqual(off_size, before)
+        self.click(tracks[-1]["handle"])
+        on_size = self.call("get_element_properties", elementHandle=self.rows[2])["size"]
+        self.assertEqual(len(self.badges(self.rows[2])), 1)
+        self.assertEqual(on_size, before)
+
+    test_last_audio_track_toggle_does_not_resize_the_video_row = assert_last_audio_track_keeps_row_height
+
+
+class FooterResponsiveTests(ViewerTests):
+    def setUp(self):
+        super().setUp()
+        deadline = time.monotonic() + self.startup_timeout
+        while True:
+            window = self.call("get_element_properties", elementHandle=self.root)
+            if window["size"] == self.expected_size:
+                break
+            self.assertLess(time.monotonic(), deadline, f"Viewer did not reach {self.expected_size}: {window['size']}")
+            time.sleep(0.02)
+        self.call(
+            "drag_element", elementHandle=self.find("AppWindow::settings-resize"),
+            target={"x": window["size"]["width"] / 2, "y": window["size"]["height"] * 0.8},
+        )
+
+    def command(self):
+        return [
+            "slint-viewer", "--auto-reload", "--load-data", str(self.fixture),
+            "tests/fixtures/footer-window.slint",
+        ]
+
+    row_elements = FooterTests.row_elements
+    badges = FooterTests.badges
+
+    def assert_footer_contents_fit(self, row_index=1, expected_badge_count=3):
+        self.assert_encoding(self.rows[row_index], "H.264", "720p", "20 MB")
+        elements = self.row_elements(self.rows[row_index])
+        footer = next(
+            element for element in elements
+            if any(item.get("typeName") == "EncodingFooter" for item in element.get("typeNamesAndIds", []))
+        )
+        contents = self.call("get_element_tree", elementHandle=footer["handle"], maxElements=300)["elements"]
+        left = footer["absolutePosition"].get("x", 0)
+        top = footer["absolutePosition"]["y"]
+        right = left + footer["size"]["width"]
+        bottom = top + footer["size"]["height"]
+        for element in contents:
+            if not element.get("accessibleLabel"):
+                continue
+            with self.subTest(label=element["accessibleLabel"]):
+                self.assertGreaterEqual(element["absolutePosition"].get("x", 0), left - 0.5)
+                self.assertGreaterEqual(element["absolutePosition"]["y"], top - 0.5)
+                self.assertLessEqual(element["absolutePosition"].get("x", 0) + element["size"]["width"], right + 0.5)
+                self.assertLessEqual(element["absolutePosition"]["y"] + element["size"]["height"], bottom + 0.5)
+        badges = self.badges(self.rows[row_index])
+        self.assertEqual(len(badges), expected_badge_count)
+        for badge in badges:
+            children = self.call("get_element_tree", elementHandle=badge["handle"], maxElements=20)["elements"]
+            number = next(element for element in children if element.get("accessibleLabel", "").isdigit())
+            self.assertLess(number["size"]["height"], badge["size"]["height"])
+            self.assertLess(number["size"]["width"], badge["size"]["width"])
+
+
+class FooterNarrowTests(FooterResponsiveTests):
+    fixture = ROOT / "tests/fixtures/footer-narrow.json"
+    expected_size = {"width": 320, "height": 1100}
+
+    test_footer_values_and_audio_numbers_stay_inside_the_card = FooterResponsiveTests.assert_footer_contents_fit
+    test_last_audio_track_toggle_does_not_resize_the_video_row = FooterTests.assert_last_audio_track_keeps_row_height
+
+
+class FooterLargeTextTests(FooterResponsiveTests):
+    fixture = ROOT / "tests/fixtures/footer-large-text.json"
+    expected_size = {"width": 1141, "height": 1300}
+
+    test_footer_values_and_audio_numbers_stay_inside_the_card = FooterResponsiveTests.assert_footer_contents_fit
+    test_last_audio_track_toggle_does_not_resize_the_video_row = FooterTests.assert_last_audio_track_keeps_row_height
+
+
+class MenuHeightTests(FooterResponsiveTests):
+    fixture = ROOT / "tests/fixtures/menu-height.json"
+    expected_size = {"width": 1141, "height": 1100}
+
+    def expand_menu(self):
+        window = self.call("get_element_properties", elementHandle=self.root)
+        videos = self.call("get_element_properties", elementHandle=self.find("AppWindow::video-list"))
+        window_limit = (window["size"]["height"] - videos["absolutePosition"]["y"]) * 0.8
+        self.call(
+            "drag_element", elementHandle=self.find("AppWindow::settings-resize"),
+            target={"x": window["size"]["width"] / 2, "y": window["size"]["height"] - window_limit},
+        )
+        return self.call("get_element_properties", elementHandle=self.find("AppWindow::settings-panel"))
+
+    def assert_menu_matches_content_limit(self):
+        window = self.call("get_element_properties", elementHandle=self.root)
+        videos = self.call("get_element_properties", elementHandle=self.find("AppWindow::video-list"))
+        content = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-content"))
+        panel = self.call("get_element_properties", elementHandle=self.find("AppWindow::settings-panel"))
+        window_limit = (window["size"]["height"] - videos["absolutePosition"]["y"]) * 0.8
+        self.assertAlmostEqual(panel["size"]["height"], min(content["size"]["height"] + 1, window_limit), delta=1.5)
+
+    def test_resize_maximum_grows_for_long_audio_and_shrinks_for_short_audio(self):
+        heights = []
+        for index in [2, 1]:
+            self.click(self.rows[index])
+            heights.append(self.expand_menu()["size"]["height"])
+            self.assert_menu_matches_content_limit()
+        self.assertGreater(heights[1], heights[0])
+        self.click(self.rows[2])
+        self.assert_menu_matches_content_limit()
+
+    def test_resize_maximum_includes_revealed_custom_fields(self):
+        self.click(self.rows[2])
+        initial = self.expand_menu()
+        for bar in ["frame-rate-bar", "size-bar", "resolution-bar"]:
+            self.choose(f"SelectionSettings::{bar}", "Custom")
+        expanded = self.expand_menu()
+        self.assert_menu_matches_content_limit()
+        self.assertGreater(expanded["size"]["height"], initial["size"]["height"])
+
+
+class MenuHeightWindowLimitTests(MenuHeightTests):
+    fixture = ROOT / "tests/fixtures/menu-height-window-limit.json"
+    expected_size = {"width": 1141, "height": 762}
+
+
+class FooterAllAudioTracksTests(FooterResponsiveTests):
+    fixture = ROOT / "tests/fixtures/footer-all-audio.json"
+    expected_size = {"width": 320, "height": 1100}
+    expected_row_count = 1
+
+    def test_all_selected_audio_tracks_wrap_without_clipping_the_card(self):
+        self.assert_footer_contents_fit(row_index=0, expected_badge_count=9)
 
 
 class EmptyVideoListTests(ViewerTests):

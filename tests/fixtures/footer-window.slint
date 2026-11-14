@@ -1,0 +1,13 @@
+import { AppWindow } from "../../ui/app-window.slint";
+import { ClipData } from "../../ui/clip-model.slint";
+
+export component FooterWindow inherits AppWindow {
+    in-out property <[ClipData]> fixture-clips <=> root.clips;
+    in property <length> text-size: 14px;
+    in property <length> viewport-width: 1141px;
+    in property <length> viewport-height: 762px;
+
+    default-font-size: root.text-size;
+    preferred-width: root.viewport-width;
+    preferred-height: root.viewport-height;
+}

@@ -2,6 +2,41 @@ import { Theme } from "../theme.slint";
 import { ClickFocusArea } from "primitives.slint";
 import { SharingPlatform, PlatformIcon } from "platform-icon.slint";
 
+component SegmentedLabel inherits HorizontalLayout {
+    in property <string> label;
+    in property <SharingPlatform> icon;
+    in property <color> color;
+
+    min-width: 0px;
+    preferred-width: 0px;
+    padding-left: 6px;
+    padding-right: 6px;
+    spacing: 6px;
+    alignment: center;
+
+    if root.icon != SharingPlatform.none : VerticalLayout {
+        alignment: center;
+
+        PlatformIcon {
+            width: 18px;
+            height: 18px;
+            platform: root.icon;
+            color: root.color;
+        }
+    }
+    Text {
+        min-width: 0px;
+        horizontal-stretch: 0;
+        text: root.label;
+        color: root.color;
+        font-size: 1rem;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+        accessible-role: none;
+    }
+}
+
 component SegmentedOption inherits Rectangle {
     in property <string> label;
     in property <SharingPlatform> icon;
@@ -21,37 +56,12 @@ component SegmentedOption inherits Rectangle {
     min-width: 0px;
     preferred-width: 0px;
 
-    HorizontalLayout {
-        padding-left: 6px;
-        padding-right: 6px;
-        spacing: 6px;
-        alignment: center;
-
-        if root.icon != SharingPlatform.none : VerticalLayout {
-            alignment: center;
-
-            PlatformIcon {
-                width: 18px;
-                height: 18px;
-                platform: root.icon;
-                color: root.selected ? Theme.text : Theme.text-dim;
-
-                animate color { duration: 160ms; }
-            }
-        }
-
-        Text {
-            min-width: 0px;
-            horizontal-stretch: 0;
-            text: root.label;
-            color: root.selected ? Theme.text : Theme.text-dim;
-            font-size: 1rem;
-            horizontal-alignment: center;
-            vertical-alignment: center;
-            overflow: elide;
-
-            animate color { duration: 160ms; }
-        }
+    SegmentedLabel {
+        width: root.width;
+        height: root.height;
+        label: root.label;
+        icon: root.icon;
+        color: Theme.text-dim;
     }
 }
 
@@ -110,20 +120,6 @@ export component SegmentedBar inherits Rectangle {
         }
     }
 
-    selection-pill := Rectangle {
-        x: root.vertical ? 3px : root.cell-width * root.pill-index + 3px;
-        y: root.vertical ? root.cell-height * root.pill-index + 3px : 3px;
-        width: root.cell-width - 6px;
-        height: root.cell-height - 6px;
-        border-radius: Theme.radius-pill;
-        background: Theme.segment-selected;
-        opacity: root.selected >= 0 ? 1 : 0;
-
-        animate x { duration: root.slide-pill ? 220ms : 0ms; easing: ease-out; }
-        animate y { duration: root.slide-pill ? 220ms : 0ms; easing: ease-out; }
-        animate opacity { duration: 160ms; easing: ease-out; }
-    }
-
     for option[i] in root.options : SegmentedOption {
         x: root.vertical ? 0px : i * root.cell-width;
         y: root.vertical ? i * root.cell-height : 0px;
@@ -134,6 +130,31 @@ export component SegmentedBar inherits Rectangle {
         selected: i == root.selected;
         enabled: root.enabled;
         activated => { root.selected-changed(i); }
+    }
+
+    selection-pill := Rectangle {
+        x: root.vertical ? 3px : root.cell-width * root.pill-index + 3px;
+        y: root.vertical ? root.cell-height * root.pill-index + 3px : 3px;
+        width: root.cell-width - 6px;
+        height: root.cell-height - 6px;
+        border-radius: Theme.radius-pill;
+        background: Theme.segment-selected;
+        opacity: root.selected >= 0 ? 1 : 0;
+        clip: true;
+
+        for option[i] in root.options : SegmentedLabel {
+            x: (root.vertical ? 0px : i * root.cell-width) - selection-pill.x;
+            y: (root.vertical ? i * root.cell-height : 0px) - selection-pill.y;
+            width: root.cell-width;
+            height: root.cell-height;
+            label: option;
+            icon: i < root.icons.length ? root.icons[i] : SharingPlatform.none;
+            color: Theme.text-on-accent;
+        }
+
+        animate x { duration: root.slide-pill ? 220ms : 0ms; easing: ease-out; }
+        animate y { duration: root.slide-pill ? 220ms : 0ms; easing: ease-out; }
+        animate opacity { duration: 160ms; easing: ease-out; }
     }
 
     touch := ClickFocusArea {
