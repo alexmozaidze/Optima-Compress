@@ -40,7 +40,9 @@ UI work is not done until it has been looked at. Three levels, cheapest first:
   at a time; parallel clicks drop one.
 
   With that debug build ready, `python3 tests/ui_selection.py` runs the selection and per-video
-  option regression checks in its own short-lived headless app processes.
+  option regression checks in its own short-lived headless app processes. Rebuild after editing
+  markup or the demo clips before running them. The binary embeds the markup from its last build,
+  while the viewer compiles at each launch.
 
 ## Map
 

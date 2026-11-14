@@ -50,3 +50,16 @@ acceptable for a one-off shade that nothing else uses.
 - `root` is the component root, not the enclosing element, so geometry must come from an element
   id.
 - `Math.floor` returns an `int`, so index maths from a pointer position needs no conversion.
+
+## Slint sizing and layout traps
+
+- `rem` resolves against `Window.default-font-size`, which a `global` does not have, so the build
+  rejects a `rem` literal in a `Theme` property of type `length` ("Cannot convert between rem and
+  logical length in a global component"). Declare the token `<relative-font-size>` and let the
+  element that uses it convert.
+- A property that feeds a layout while also reading that layout's computed `height` is a binding
+  loop, reported at build time. Derive the value from intrinsic properties instead, such as a
+  reveal's own height.
+- A `ScrollView` shows its scrollbar whenever `content-height` exceeds `visible-height`, with no
+  tolerance for rounding. Clamp `content-height` to `Math.max(self.visible-height, ...)` so a
+  fractional overshoot cannot surface it.
