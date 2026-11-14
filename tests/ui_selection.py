@@ -1260,6 +1260,38 @@ class AudioNameMismatchTests(ViewerTests):
         self.assertFalse(self.audio_track("Desktop audio").get("accessibleChecked", False))
 
 
+class AudioNameOverflowTests(ViewerTests):
+    fixture = ROOT / "tests/fixtures/audio-name-overflow.json"
+    expected_row_count = 2
+
+    def track_positions(self):
+        return [round(track["absolutePosition"]["y"], 1) for track in self.menu_controls() if track.get("accessibleRole") == "Checkbox"]
+
+    def panel_top(self):
+        return self.call("get_element_properties", elementHandle=self.find("AppWindow::settings-panel"))["absolutePosition"]["y"]
+
+    def test_warning_appearing_keeps_the_audio_rows_in_place(self):
+        self.click(self.rows[0])
+        self.scroll_settings(-10000)
+        self.assertLess(
+            self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-content"))["absolutePosition"]["y"],
+            self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-scroll"))["absolutePosition"]["y"],
+        )
+        before = self.track_positions()
+        panel = self.panel_top()
+        self.click(self.rows[1], control=True)
+        labels = [track["accessibleLabel"] for track in self.menu_controls() if track.get("accessibleRole") == "Checkbox"]
+        self.assertIn("Different audio, track 1", labels)
+        self.assertEqual(self.track_positions(), before)
+        self.assertAlmostEqual(self.panel_top(), panel, delta=0.5)
+        self.click(self.rows[1], control=True)
+        self.assertNotIn(
+            "Different audio, track 1",
+            [track["accessibleLabel"] for track in self.menu_controls() if track.get("accessibleRole") == "Checkbox"],
+        )
+        self.assertEqual(self.track_positions(), before)
+
+
 def stop_virtual_display(process):
     process.terminate()
     try:

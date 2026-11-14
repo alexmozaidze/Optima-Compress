@@ -37,6 +37,10 @@ export component SelectionSettings inherits Rectangle {
     property <int> audio-revision;
     property <int> audio-mixed-count;
     property <int> audio-name-conflict-count;
+    property <length> warning-height: audio-warning.height;
+    property <length> last-warning-height;
+    property <length> scroll-content-height: settings-scroll.content-height;
+    property <length> pending-scroll;
     // NOTE: keeps the ScrollView's content-height at or below its visible height once everything fits, so a
     // scrollbar cannot appear from fractional layout rounding.
     property <length> content-fit-slack: 1px;
@@ -57,6 +61,25 @@ export component SelectionSettings inherits Rectangle {
         root.audio-mixed-count = 0;
         root.audio-name-conflict-count = 0;
         root.audio-revision += 1;
+    }
+
+    // NOTE: the warning sits above the tracks and appears asynchronously, so without this the whole
+    // audio list shifts by its height when a second video makes the track names differ. The scroll is
+    // adjusted once the taller content is laid out, otherwise the Flickable clamps the write.
+    changed warning-height => {
+        if settings-scroll.content-y < 0px {
+            root.pending-scroll += root.warning-height - root.last-warning-height;
+        }
+        root.last-warning-height = root.warning-height;
+    }
+
+    changed scroll-content-height => {
+        if root.pending-scroll != 0px {
+            let delta = root.pending-scroll;
+            root.pending-scroll = 0px;
+            let limit = Math.max(0px, settings-scroll.content-height - settings-scroll.visible-height);
+            settings-scroll.content-y = Math.max(-limit, Math.min(0px, settings-scroll.content-y - delta));
+        }
     }
 
     function report-audio-summary(revision: int, mixed: bool, names-differ: bool) {
