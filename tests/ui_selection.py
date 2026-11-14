@@ -893,6 +893,75 @@ class AudioOverflowTests(ViewerTests):
         self.click(self.rows[2])
         self.assertEqual([track["accessibleLabel"] for track in self.audio_tracks()], ["Game audio"])
 
+    def rail_thumb(self, rail_id):
+        elements = self.call("get_element_tree", elementHandle=self.find(rail_id), maxElements=100)["elements"]
+        return next(
+            element for element in elements
+            if any(item.get("id") == "ScrollRail::thumb" for item in element.get("typeNamesAndIds", []))
+        )
+
+    def drag_rail_to_end(self, rail_id):
+        rail = self.call("get_element_properties", elementHandle=self.find(rail_id))
+        self.call(
+            "drag_element", elementHandle=self.rail_thumb(rail_id)["handle"],
+            target={
+                "x": rail["absolutePosition"]["x"] + rail["size"]["width"] / 2,
+                "y": rail["absolutePosition"]["y"] + rail["size"]["height"] - 1,
+            },
+        )
+
+    def assert_revealed(self, element, viewport):
+        bottom = viewport["absolutePosition"]["y"] + viewport["size"]["height"]
+        self.assertLessEqual(
+            element["absolutePosition"]["y"] + element["size"]["height"], bottom + 0.5,
+            f"{element.get('accessibleLabel')} stays below the viewport",
+        )
+
+    def audio_labels(self):
+        return [control["accessibleLabel"] for control in self.menu_controls() if control.get("accessibleRole") == "Checkbox"]
+
+    def test_settings_rail_drags_the_menu_to_the_last_audio_track(self):
+        self.click(self.rows[1])
+        self.scroll_settings(10000)
+        self.assertNotIn("Sound effects", self.audio_labels())
+        self.drag_rail_to_end("SelectionSettings::settings-rail")
+        self.assertEqual(self.audio_labels()[-1], "Sound effects")
+        self.assert_revealed(
+            self.audio_track("Sound effects"),
+            self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-scroll")),
+        )
+
+    def test_video_rail_drags_the_list_without_changing_selection(self):
+        self.click(self.rows[0])
+        selected = self.selected()
+        last = self.call("get_element_properties", elementHandle=self.rows[-1])
+        viewport = self.call("get_element_properties", elementHandle=self.find("VideoList::list-scroll"))
+        self.assertGreater(last["absolutePosition"]["y"] + last["size"]["height"], viewport["absolutePosition"]["y"] + viewport["size"]["height"])
+        self.drag_rail_to_end("VideoList::list-rail")
+        self.assert_revealed(
+            self.call("get_element_properties", elementHandle=self.rows[-1]),
+            self.call("get_element_properties", elementHandle=self.find("VideoList::list-scroll")),
+        )
+        self.assertEqual(self.selected(), selected)
+
+    def test_wheel_over_the_settings_rail_scrolls_the_menu(self):
+        self.click(self.rows[1])
+        self.scroll_settings(10000)
+        rail = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-rail"))
+        content = self.find("SelectionSettings::settings-content")
+        before = self.call("get_element_properties", elementHandle=content)["absolutePosition"]["y"]
+        self.call(
+            "dispatch_pointer_scroll", windowHandle=self.window,
+            position={
+                "x": rail["absolutePosition"]["x"] + rail["size"]["width"] / 2,
+                "y": rail["absolutePosition"]["y"] + rail["size"]["height"] / 2,
+            },
+            deltaY=-10000, deltaX=0,
+        )
+        self.assertLess(
+            self.call("get_element_properties", elementHandle=content)["absolutePosition"]["y"], before,
+        )
+
 
 class ViewerSelectionStateTests(ViewerTests):
     fixture = ROOT / "tests/fixtures/audio-overflow.json"

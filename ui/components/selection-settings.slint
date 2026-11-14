@@ -1,6 +1,7 @@
 import { Theme } from "../theme.slint";
 import { AudioTrack, ClipData, EncodingField, EncodingConflicts } from "../clip-model.slint";
 import { ScrollView } from "std-widgets.slint";
+import { ScrollRail } from "scroll-rail.slint";
 import { ClickFocusArea, Divider } from "primitives.slint";
 import { SegmentedBar } from "segmented-bar.slint";
 import { SharingPlatform } from "platform-icon.slint";
@@ -87,6 +88,7 @@ export component SelectionSettings inherits Rectangle {
         settings-scroll := ScrollView {
             opacity: root.editable ? 1 : 0.45;
             horizontal-scrollbar-policy: always-off;
+            vertical-scrollbar-policy: always-off;
             content-width: self.visible-width;
             content-height: Math.max(self.visible-height, settings-content.min-height);
 
@@ -387,5 +389,15 @@ export component SelectionSettings inherits Rectangle {
                 }
             }
         }
+    }
+
+    settings-rail := ScrollRail {
+        x: root.width - self.width;
+        y: root.top-border-height;
+        height: settings-scroll.height;
+        opacity: settings-scroll.opacity;
+        content-y <=> settings-scroll.content-y;
+        visible-height: settings-scroll.visible-height;
+        content-height: settings-scroll.content-height;
     }
 }

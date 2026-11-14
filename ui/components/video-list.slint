@@ -1,6 +1,7 @@
 import { Theme } from "../theme.slint";
 import { AudioTrack, ClipData, EncodingOptions, EncodingConflicts, EncodingField, SelectionRequest, SelectionOperation } from "../clip-model.slint";
 import { SelectableClip } from "selectable-clip.slint";
+import { ScrollRail } from "scroll-rail.slint";
 import { ScrollView } from "std-widgets.slint";
 
 export component VideoList inherits Rectangle {
@@ -152,6 +153,7 @@ export component VideoList inherits Rectangle {
         width: root.width;
         height: root.height;
         horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
         mouse-drag-pan-enabled: false;
         content-width: self.visible-width;
         content-height: Math.max(self.visible-height, list-rows.min-height + 28px);
@@ -227,5 +229,13 @@ export component VideoList inherits Rectangle {
                 border-color: Theme.accent;
             }
         }
+    }
+
+    list-rail := ScrollRail {
+        x: root.width - self.width;
+        height: root.height;
+        content-y <=> list-scroll.content-y;
+        visible-height: list-scroll.visible-height;
+        content-height: list-scroll.content-height;
     }
 }

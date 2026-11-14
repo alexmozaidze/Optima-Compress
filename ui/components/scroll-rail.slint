@@ -1,0 +1,56 @@
+import { Theme } from "../theme.slint";
+
+// The bar drawn in place of a ScrollView's own: every stock style hardcodes its scrollbar colours,
+// and the stock track reads as a grey slab against the panel.
+export component ScrollRail inherits Rectangle {
+    in-out property <length> content-y;
+    in property <length> visible-height;
+    in property <length> content-height;
+
+    property <length> inset: 2px;
+    property <length> maximum: Math.max(0px, root.content-height - root.visible-height);
+    property <length> travel: root.height - 2 * root.inset;
+    property <length> thumb-length: Math.min(root.travel,
+        Math.max(32px, root.travel * root.visible-height / Math.max(root.content-height, 1px)));
+    property <length> drag-range: root.travel - root.thumb-length;
+    property <length> thumb-offset: root.maximum > 0px ? root.drag-range * (-root.content-y / root.maximum) : 0px;
+    property <length> drag-y;
+    property <length> drag-content-y;
+
+    width: 8px;
+    visible: root.maximum > 0px;
+
+    thumb := Rectangle {
+        y: root.inset + root.thumb-offset;
+        width: root.width;
+        height: root.thumb-length;
+        border-radius: self.width / 2;
+        background: touch.pressed ? Theme.accent-hover : touch.has-hover ? Theme.accent : Theme.outline;
+
+        animate background { duration: 120ms; }
+    }
+
+    touch := TouchArea {
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                root.drag-y = self.mouse-y;
+                root.drag-content-y = root.content-y;
+            }
+        }
+
+        moved => {
+            if (self.pressed && root.drag-range > 0px) {
+                root.content-y = Math.max(-root.maximum, Math.min(0px, root.drag-content-y
+                    - (self.mouse-y - root.drag-y) * root.maximum / root.drag-range));
+            }
+        }
+
+        scroll-event(event) => {
+            if (event.delta-y != 0) {
+                root.content-y = Math.max(-root.maximum, Math.min(0px, root.content-y + event.delta-y));
+                return accept;
+            }
+            reject
+        }
+    }
+}

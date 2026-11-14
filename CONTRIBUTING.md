@@ -50,6 +50,9 @@ acceptable for a one-off shade that nothing else uses.
 - `root` is the component root, not the enclosing element, so geometry must come from an element
   id.
 - `Math.floor` returns an `int`, so index maths from a pointer position needs no conversion.
+- A stock `ScrollView` bar cannot be recoloured: every style hardcodes its colours as `out`
+  properties, and the dark styles' grey track disappears against the panel. `ScrollRail` draws
+  the bar instead, and the scroll views using it set `vertical-scrollbar-policy: always-off`.
 
 ## Slint sizing and layout traps
 
