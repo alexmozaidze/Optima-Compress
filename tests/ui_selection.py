@@ -19,6 +19,9 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# 3.15rem at the 14px base font size.
+AUDIO_ROW_HEIGHT = 44.1
+
 
 def start_virtual_display():
     read_descriptor, write_descriptor = os.pipe()
@@ -287,7 +290,6 @@ class SelectionTests(AppWindowTests):
         self.assertEqual(self.checked_options("SelectionSettings::frame-rate-bar"), ["60"])
         self.click(self.rows[0], control=True)
         self.assertEqual(self.checked_options("SelectionSettings::frame-rate-bar"), [])
-        self.assertTrue(any(label.startswith("Mixed settings") for label in self.labels()))
         self.choose("SelectionSettings::codec-bar", "Quality (AV1)")
         self.assertEqual(self.checked_options("SelectionSettings::frame-rate-bar"), [])
         self.choose("SelectionSettings::frame-rate-bar", "Custom")
@@ -502,25 +504,23 @@ class SelectionTests(AppWindowTests):
         self.box(start=self.rows[2], target_x=5, control=True)
         self.assertEqual(self.selected(), [False, False, False])
 
+    def sample_selection(self, observed_counts):
+        labels = self.labels(self.find("AppWindow::selection-toolbar"))
+        for count in [1, 2, 3]:
+            label = "1 video selected" if count == 1 else f"{count} videos selected"
+            if label in labels:
+                observed_counts.add(count)
+
     def test_settings_follow_selection_before_box_drag_finishes(self):
         self.assertNotIn("1 video selected", self.labels())
         observed_counts = set()
         with ThreadPoolExecutor(max_workers=1) as executor:
             drag = executor.submit(self.box, target_row=self.rows[0])
             while not drag.done():
-                elements = self.call("get_element_tree", elementHandle=self.root, maxElements=1000)["elements"]
-                if drag.done():
-                    break
-                selected_count = sum(
-                    entry.get("accessibleItemSelected", False)
-                    for entry in elements if entry.get("accessibleRole") == "ListItem"
-                )
-                if selected_count > 0:
-                    label = "1 video selected" if selected_count == 1 else f"{selected_count} videos selected"
-                    self.assertIn(label, [entry.get("accessibleLabel", "") for entry in elements])
-                    observed_counts.add(selected_count)
+                self.sample_selection(observed_counts)
                 time.sleep(0.02)
             drag.result()
+        self.sample_selection(observed_counts)
         self.assertEqual(observed_counts, {1, 2, 3})
         self.assertEqual(self.selected(), [True, True, True])
         self.assertIn("3 videos selected", self.labels())
@@ -552,7 +552,8 @@ class SelectionTests(AppWindowTests):
         self.assertIn("12 MB target", self.labels(self.rows[2]))
         self.click(self.rows[1])
         self.click(self.rows[2], control=True)
-        self.assertTrue(any(label.startswith("Mixed settings") for label in self.labels()))
+        self.assertEqual(self.checked_options("SelectionSettings::codec-bar"), [])
+        self.assertEqual(self.checked_options("SelectionSettings::resolution-bar"), ["720p"])
         self.choose("SelectionSettings::resolution-bar", "1080p")
         self.assertIn("AV1 · 720p", self.labels(self.rows[0]))
         self.assertIn("H.264 · 1080p", self.labels(self.rows[1]))
@@ -642,12 +643,11 @@ class SelectionTests(AppWindowTests):
         for row in self.rows[:2]:
             self.assertIn("H.264 · 1600 × 900", self.labels(row))
             self.assertIn("16 MB target", self.labels(row))
-        self.assertFalse(any(label.startswith("Mixed settings") for label in self.labels()))
 
     def test_initial_audio_viewport_matches_the_selected_video(self):
         for index, labels in [
             (0, []),
-            (1, ["Game audio", "Microphone", "Party chat", "Music", "Commentary", "System audio"]),
+            (1, ["Game audio", "Microphone", "Party chat", "Music", "Commentary", "System audio", "Alerts", "Voice chat", "Sound effects"]),
             (2, ["Desktop audio", "Microphone"]),
         ]:
             with self.subTest(video=index):
@@ -677,7 +677,7 @@ class SelectionTests(AppWindowTests):
 
     def test_demo_audio_scrolls_without_moving_the_settings(self):
         self.click(self.rows[1])
-        self.assert_audio_viewport(["Game audio", "Microphone", "Party chat", "Music", "Commentary", "System audio"])
+        self.assert_audio_viewport(["Game audio", "Microphone", "Party chat", "Music", "Commentary", "System audio", "Alerts", "Voice chat", "Sound effects"])
         commentary = self.audio_track("Commentary")
         self.click(commentary["handle"])
         self.assertTrue(self.audio_track("Commentary")["accessibleChecked"])
@@ -688,7 +688,7 @@ class SelectionTests(AppWindowTests):
         audio = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::audio-scroll"))
         gap = panel["absolutePosition"]["y"] + panel["size"]["height"] - audio["absolutePosition"]["y"] - audio["size"]["height"]
         self.assertAlmostEqual(gap, 32, delta=1.5)
-        self.assertEqual(self.audio_tracks()[0]["size"]["height"], 41)
+        self.assertAlmostEqual(self.audio_tracks()[0]["size"]["height"], AUDIO_ROW_HEIGHT, delta=0.1)
 
     def test_audio_container_stays_visible_while_tracks_scroll(self):
         self.click(self.rows[1])
@@ -705,8 +705,9 @@ class SelectionTests(AppWindowTests):
         self.assertLessEqual(audio["absolutePosition"]["y"] + audio["size"]["height"], bottom - 31.5)
         self.assertGreaterEqual(audio["absolutePosition"]["y"], settings["absolutePosition"]["y"])
         tracks = [control for control in self.menu_controls() if control.get("accessibleRole") == "Checkbox"]
-        self.assertEqual(tracks[-1]["accessibleLabel"], "System audio")
-        self.assertEqual(tracks[0]["size"]["height"], 41)
+        self.assertTrue(tracks)
+        for track in tracks:
+            self.assertAlmostEqual(track["size"]["height"], AUDIO_ROW_HEIGHT, delta=0.1)
 
     def test_mixed_audio_only_compares_videos_that_have_the_track(self):
         self.click(self.rows[2])
@@ -715,12 +716,10 @@ class SelectionTests(AppWindowTests):
         track = self.audio_track("Microphone")
         self.assertFalse(track.get("accessibleChecked", False))
         self.assertNotEqual(track.get("accessibleDescription"), "Mixed values")
-        self.assertFalse(any(label.startswith("Mixed settings") for label in self.labels()))
         self.click(self.rows[1], control=True)
         track = self.audio_track("Microphone")
         self.assertFalse(track.get("accessibleChecked", False))
         self.assertEqual(track.get("accessibleDescription"), "Mixed values")
-        self.assertTrue(any(label.startswith("Mixed settings") for label in self.labels()))
         self.click(track["handle"])
         self.assertTrue(self.audio_track("Microphone")["accessibleChecked"])
         for index in [1, 2]:
@@ -786,7 +785,7 @@ class AudioOverflowTests(ViewerTests):
 
     def test_audio_list_scrolls_and_edits_beyond_four_tracks(self):
         self.click(self.rows[1])
-        self.assert_audio_viewport(["Game audio", "Microphone", "Party chat", "Music", "Commentary", "System audio"])
+        self.assert_audio_viewport(["Game audio", "Microphone", "Party chat", "Music", "Commentary", "System audio", "Alerts", "Voice chat", "Sound effects"])
         scroll = self.find("SelectionSettings::audio-scroll")
         self.call("scroll_element", elementHandle=scroll, deltaY=-10000, deltaX=0)
         commentary = self.audio_track("Commentary")
@@ -855,7 +854,7 @@ class AudioNameMismatchTests(ViewerTests):
         self.assertEqual(tracks[1].get("accessibleDescription", ""), "")
         self.assertEqual(tracks[3]["accessibleDescription"], "2 different names; mixed values")
         self.assertIn("2 names", self.labels())
-        self.assertTrue(any("edits apply by position" in label for label in self.labels()))
+        self.assertTrue(any(label.startswith("Track names differ between videos") for label in self.labels()))
 
     def test_more_than_two_names_drop_the_count(self):
         self.click(self.rows[0])

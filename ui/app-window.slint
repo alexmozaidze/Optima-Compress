@@ -15,13 +15,13 @@ export component AppWindow inherits Window {
     min-width: 320px;
     min-height: 400px;
     default-font-family: "Open Sans";
-    default-font-size: 13px;
+    default-font-size: 14px;
 
-    property <bool> tablet: root.width < 800px * (root.default-font-size / 13px);
-    property <bool> phone: root.width < 480px * (root.default-font-size / 13px);
+    property <bool> tablet: root.width < 61.54rem;
+    property <bool> phone: root.width < 36.92rem;
     property <length> settings-height-limit: Math.min(settings-menu.preferred-height,
         (root.height - header.height - selection-toolbar.height) * 0.8);
-    property <length> settings-height-minimum: Math.min(140px * (root.default-font-size / 13px), root.settings-height-limit);
+    property <length> settings-height-minimum: Math.min(10.77rem, root.settings-height-limit);
     property <length> requested-settings-height: settings-menu.preferred-height;
 
     out property <int> selected-count: video-list.selected-count;
@@ -58,6 +58,9 @@ export component AppWindow inherits Window {
                 { name: "Music", info: "AAC · Stereo · 48 kHz", enabled: false },
                 { name: "Commentary", info: "AAC · Mono · 48 kHz", enabled: false },
                 { name: "System audio", info: "AAC · Stereo · 48 kHz", enabled: false },
+                { name: "Alerts", info: "AAC · Mono · 48 kHz", enabled: false },
+                { name: "Voice chat", info: "Opus · Mono · 48 kHz", enabled: true },
+                { name: "Sound effects", info: "AAC · Stereo · 48 kHz", enabled: false },
             ],
         },
         {
@@ -81,7 +84,7 @@ export component AppWindow inherits Window {
         window-title := Text {
             text: "QuickClip Compress";
             color: Theme.text;
-            font-size: 11px;
+            font-size: 0.85rem;
             font-weight: 600;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -114,7 +117,7 @@ export component AppWindow inherits Window {
                     ? (root.selected-count == 1 ? "1 video selected" : root.selected-count + " videos selected")
                     : (root.clips.length == 1 ? "1 video" : root.clips.length + " videos");
                 color: Theme.text;
-                font-size: 14px;
+                font-size: 1.08rem;
                 font-weight: 600;
                 vertical-alignment: center;
                 overflow: elide;
@@ -129,7 +132,7 @@ export component AppWindow inherits Window {
                 clear-label := Text {
                     text: "Clear";
                     color: Theme.text;
-                    font-size: 12px;
+                    font-size: 0.92rem;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
@@ -231,7 +234,7 @@ export component AppWindow inherits Window {
                             height: self.preferred-height;
                             text: "No videos selected";
                             color: Theme.text;
-                            font-size: 20px;
+                            font-size: 1.54rem;
                             font-weight: 600;
                             horizontal-alignment: center;
                         }
@@ -239,7 +242,7 @@ export component AppWindow inherits Window {
                             height: self.preferred-height;
                             text: "Drag and drop videos here, then select one to adjust compression settings.\nCtrl-click to select multiple videos.";
                             color: Theme.text-dim;
-                            font-size: 13px;
+                            font-size: 1rem;
                             horizontal-alignment: center;
                             wrap: word-wrap;
                         }

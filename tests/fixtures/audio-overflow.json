@@ -14,7 +14,7 @@
             }
         },
         {
-            "file-name": "Six_Tracks.mp4",
+            "file-name": "Many_Tracks.mp4",
             "source-path": "",
             "metadata": "Audio scrolling fixture",
             "state": "waiting",
@@ -26,7 +26,10 @@
                 { "name": "Party chat", "info": "Opus · Stereo · 48 kHz", "enabled": false },
                 { "name": "Music", "info": "AAC · Stereo · 48 kHz", "enabled": false },
                 { "name": "Commentary", "info": "AAC · Mono · 48 kHz", "enabled": false },
-                { "name": "System audio", "info": "AAC · Stereo · 48 kHz", "enabled": false }
+                { "name": "System audio", "info": "AAC · Stereo · 48 kHz", "enabled": false },
+                { "name": "Alerts", "info": "AAC · Mono · 48 kHz", "enabled": false },
+                { "name": "Voice chat", "info": "Opus · Mono · 48 kHz", "enabled": true },
+                { "name": "Sound effects", "info": "AAC · Stereo · 48 kHz", "enabled": false }
             ],
             "options": {
                 "codec": 0, "size": 0, "custom-size": "8", "resolution": 1,

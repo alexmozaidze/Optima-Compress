@@ -48,14 +48,14 @@ component EncodingSummary inherits HorizontalLayout {
         Text {
             text: root.codec + " · " + root.resolution;
             color: Theme.text;
-            font-size: 14px;
+            font-size: 1.08rem;
             font-weight: 600;
             wrap: word-wrap;
         }
         Text {
             text: root.target-size + " target";
             color: Theme.text-dim;
-            font-size: 12px;
+            font-size: 0.92rem;
             wrap: word-wrap;
         }
     }
@@ -124,7 +124,7 @@ export component ClipRow inherits Rectangle {
                 height: self.preferred-height;
                 text: root.file-name;
                 color: Theme.text;
-                font-size: 16px;
+                font-size: 1.23rem;
                 font-weight: 600;
                 overflow: elide;
             }
@@ -132,7 +132,7 @@ export component ClipRow inherits Rectangle {
                 height: self.preferred-height;
                 text: root.metadata;
                 color: Theme.text-dim;
-                font-size: 12px;
+                font-size: 0.92rem;
                 wrap: word-wrap;
             }
             HorizontalLayout {
@@ -157,7 +157,7 @@ export component ClipRow inherits Rectangle {
                         : root.state == ClipState.compressing ? "Compressing · " + Math.round(root.bounded-progress * 100) + "%"
                         : "Waiting for compression";
                     color: root.status-color;
-                    font-size: 13px;
+                    font-size: 1rem;
                     wrap: word-wrap;
                 }
             }
