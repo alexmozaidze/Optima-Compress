@@ -358,7 +358,7 @@ class SelectionTests(AppWindowTests):
         toolbar = self.find("AppWindow::selection-toolbar")
         bounds = self.call("get_element_properties", elementHandle=toolbar)
         videos = self.call("get_element_properties", elementHandle=self.find("AppWindow::video-list"))
-        self.assertAlmostEqual(bounds["absolutePosition"]["y"] + bounds["size"]["height"], videos["absolutePosition"]["y"], delta=0.1)
+        self.assertAlmostEqual(bounds["absolutePosition"].get("y", 0) + bounds["size"]["height"], videos["absolutePosition"]["y"], delta=0.1)
         self.assertIn("1 video selected", self.labels(toolbar))
         self.assertIn("Clear", self.labels(toolbar))
         panel = self.find("AppWindow::settings-panel")

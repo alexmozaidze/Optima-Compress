@@ -20,7 +20,7 @@ export component AppWindow inherits Window {
     property <bool> tablet: root.width < 61.54rem;
     property <bool> phone: root.width < 36.92rem;
     property <length> settings-height-limit: Math.min(settings-menu.menu-height-limit,
-        (root.height - header.height - selection-toolbar.height) * 0.8);
+        (root.height - selection-toolbar.height) * 0.8);
     property <length> settings-height-minimum: Math.min(10.77rem, root.settings-height-limit);
     property <length> requested-settings-height: settings-menu.preferred-height;
 
@@ -74,33 +74,12 @@ export component AppWindow inherits Window {
         },
     ];
 
-    header := Rectangle {
+    selection-toolbar := Rectangle {
         x: 0px;
         y: 0px;
         width: root.width;
-        height: Math.max(26px, window-title.preferred-height + 10px);
-        background: Theme.header-bg;
-
-        window-title := Text {
-            text: "QuickClip Compress";
-            color: Theme.text;
-            font-size: 0.85rem;
-            font-weight: 600;
-            horizontal-alignment: center;
-            vertical-alignment: center;
-        }
-        Rectangle {
-            y: parent.height - 1px;
-            height: 1px;
-            background: Theme.divider;
-        }
-    }
-
-    selection-toolbar := Rectangle {
-        x: 0px;
-        y: header.height;
-        width: root.width;
         height: toolbar-content.min-height;
+        background: Theme.toolbar-bg;
 
         toolbar-content := HorizontalLayout {
             padding-left: Theme.video-list-inset;
