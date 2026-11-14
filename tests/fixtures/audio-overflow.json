@@ -9,7 +9,7 @@
             "selected": false,
             "audio-tracks": [],
             "options": {
-                "codec": 1, "size": 0, "custom-size": "8", "resolution": 1,
+                "codec": 0, "size": 0, "custom-size": "8", "resolution": 1,
                 "custom-width": "1920", "custom-height": "1080"
             }
         },
@@ -29,7 +29,7 @@
                 { "name": "System audio", "info": "AAC · Stereo · 48 kHz", "enabled": false }
             ],
             "options": {
-                "codec": 1, "size": 0, "custom-size": "8", "resolution": 1,
+                "codec": 0, "size": 0, "custom-size": "8", "resolution": 1,
                 "custom-width": "1920", "custom-height": "1080"
             }
         },
@@ -44,7 +44,7 @@
                 { "name": "Game audio", "info": "AAC · Stereo · 48 kHz", "enabled": true }
             ],
             "options": {
-                "codec": 1, "size": 0, "custom-size": "8", "resolution": 1,
+                "codec": 0, "size": 0, "custom-size": "8", "resolution": 1,
                 "custom-width": "1920", "custom-height": "1080"
             }
         }

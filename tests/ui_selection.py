@@ -610,7 +610,7 @@ class SelectionTests(AppWindowTests):
         self.choose("SelectionSettings::codec-bar", "Quality (AV1)")
         pill, selected = self.codec_highlight()
         self.assertIsNotNone(selected)
-        self.assertGreater(self.horizontal_center(pill), self.horizontal_center(selected) + 1)
+        self.assertGreater(abs(self.horizontal_center(pill) - self.horizontal_center(selected)), 1)
         deadline = time.monotonic() + 2
         while abs(self.horizontal_center(pill) - self.horizontal_center(selected)) > 1:
             self.assertLess(time.monotonic(), deadline, "Highlight did not reach the selected option")

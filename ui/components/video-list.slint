@@ -192,7 +192,7 @@ export component VideoList inherits Rectangle {
                     audio-track-count: clip.audio-tracks.length;
                     request: root.request;
                     request-revision: root.request-revision;
-                    encoding-codec: clip.options.codec == 0 ? "AV1" : "H.264";
+                    encoding-codec: clip.options.codec == 0 ? "H.264" : "AV1";
                     encoding-resolution: clip.options.resolution == 3 ? clip.options.custom-width + " × " + clip.options.custom-height
                         : ["480p", "720p", "1080p"][clip.options.resolution];
                     encoding-size: clip.options.size == 3 ? clip.options.custom-size + " MB"

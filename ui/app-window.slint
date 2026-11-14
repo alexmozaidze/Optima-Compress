@@ -26,7 +26,7 @@ export component AppWindow inherits Window {
 
     out property <int> selected-count: video-list.selected-count;
     out property <bool> mixed-options: video-list.mixed-options || settings-menu.mixed-audio;
-    in-out property <int> codec: 1;
+    in-out property <int> codec: 0;
     in-out property <int> frame-rate: 0;
     in-out property <string> custom-frame-rate: "60";
     in-out property <int> size: 0;
@@ -36,7 +36,7 @@ export component AppWindow inherits Window {
     in-out property <string> custom-height: "1080";
 
     out property <EncodingOptions> default-options: {
-        codec: 1, size: 0, custom-size: "8", resolution: 1,
+        codec: 0, size: 0, custom-size: "8", resolution: 1,
         frame-rate: 0, custom-frame-rate: "60",
         custom-width: "1920", custom-height: "1080",
     };

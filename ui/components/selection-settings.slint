@@ -118,7 +118,7 @@ export component SelectionSettings inherits Rectangle {
                         codec-bar := SegmentedBar {
                             enabled: root.editable;
                             vertical: root.phone;
-                            options: ["Quality (AV1)", "Compatibility (H.264)"];
+                            options: ["Compatibility (H.264)", "Quality (AV1)"];
                             selected: !root.editable || root.conflicts.codec ? -1 : root.codec;
                             selected-changed(index) => {
                                 root.codec = index;
