@@ -18,14 +18,14 @@ fails on `.slint` errors as well as Rust ones, and `cargo run` opens the window.
 
 ## Verify before finishing
 
-Prototype interactions must work in `slint-viewer --auto-reload ui/app-window.slint`, which
+Prototype interactions must work in `slint-viewer --style cosmic-dark --auto-reload ui/app-window.slint`, which
 does not run Rust callback handlers. A passing compiled-app check alone does not verify this
 workflow.
 
 UI work is not done until it has been looked at. Three levels, cheapest first:
 
-- `slint-viewer --check ui/app-window.slint` — diagnostics for the markup alone.
-- `slint-viewer --screenshot ~/tmp/ui.png ui/app-window.slint` — renders at the component's
+- `slint-viewer --style cosmic-dark --check ui/app-window.slint` — diagnostics for the markup alone.
+- `slint-viewer --style cosmic-dark --screenshot ~/tmp/ui.png ui/app-window.slint` — renders at the component's
   preferred size with no display server (no X, no Xvfb). Write the state to a JSON file and pass
   its path: `--load-data ~/tmp/state.json`, e.g. `{"codec":0}`. Inline JSON is not accepted.
 - Interactive behaviour needs the app's embedded MCP server:
