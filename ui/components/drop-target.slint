@@ -1,6 +1,7 @@
 import { Theme } from "../theme.slint";
 
 export component DropTarget inherits DropArea {
+    in property <bool> external-drag: false;
     callback files-dropped(data-transfer);
 
     can-drop(event) => { DragAction.copy }
@@ -9,7 +10,7 @@ export component DropTarget inherits DropArea {
         return DragAction.copy;
     }
 
-    if root.has-drag : Rectangle {
+    if root.has-drag || root.external-drag : Rectangle {
         width: root.width;
         height: root.height;
         background: Theme.window-bg.with-alpha(0.92);

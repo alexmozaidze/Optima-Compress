@@ -15,6 +15,9 @@ edition = "2024"
 slint = { version = "1.18.1", default-features = false, features = [
     "std",
     "backend-winit",
+    # NOTE: the winit backend ignores file drops, so the host hooks DroppedFile through
+    # WinitWindowAccessor::on_winit_window_event and needs the winit re-exports.
+    "unstable-winit-030",
     "renderer-skia",
     "renderer-femtovg",
     "renderer-software",

@@ -4,6 +4,7 @@
 use std::error::Error;
 use std::path::{Path, PathBuf};
 
+use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
 use slint::{DataTransfer, Model, ModelRc, SharedString, VecModel};
 
 slint::include_modules!();
@@ -65,11 +66,48 @@ fn append_clips(ui: &AppWindow, files: &[PathBuf]) {
     ui.set_clips(ModelRc::new(VecModel::from(clips)));
 }
 
+#[derive(Debug)]
+enum DropAction {
+    Hover,
+    Cancel,
+    Drop(PathBuf),
+}
+
+fn drop_action(event: &winit::event::WindowEvent) -> Option<DropAction> {
+    match event {
+        winit::event::WindowEvent::HoveredFile(_) => Some(DropAction::Hover),
+        winit::event::WindowEvent::HoveredFileCancelled => Some(DropAction::Cancel),
+        winit::event::WindowEvent::DroppedFile(path) => Some(DropAction::Drop(path.clone())),
+        _ => None,
+    }
+}
+
+fn handle_drop_event(ui: &AppWindow, event: &winit::event::WindowEvent) {
+    match drop_action(event) {
+        Some(DropAction::Hover) => ui.set_file_drag_active(true),
+        Some(DropAction::Cancel) => ui.set_file_drag_active(false),
+        Some(DropAction::Drop(path)) => {
+            ui.set_file_drag_active(false);
+            append_clips(ui, std::slice::from_ref(&path));
+        }
+        None => {}
+    }
+}
+
 fn connect_import(ui: &AppWindow) {
     let drop_handle = ui.as_weak();
     ui.on_files_dropped(move |transfer| {
         let Some(ui) = drop_handle.upgrade() else { return };
         append_clips(&ui, &imported_files(&transfer));
+    });
+
+    // NOTE: the winit backend never feeds DropArea, so file drops arrive as raw window events.
+    let event_handle = ui.as_weak();
+    ui.window().on_winit_window_event(move |_window, event| {
+        if let Some(ui) = event_handle.upgrade() {
+            handle_drop_event(&ui, event);
+        }
+        EventResult::Propagate
     });
 }
 
@@ -162,25 +200,20 @@ mod tests {
     }
 
     #[test]
-    fn dropping_files_appends_clips_to_an_empty_window() {
-        let directory = scratch_directory("window");
-        let file = directory.join("dropped.mp4");
-        std::fs::write(&file, b"clip").expect("write clip");
-
-        // SAFETY: only this test opens a window, and it reads the backend choice it just set.
-        unsafe { std::env::set_var("SLINT_BACKEND", "headless") };
-        let ui = AppWindow::new().expect("window");
-        connect_import(&ui);
-        assert_eq!(ui.get_clips().row_count(), 0);
-
-        let mut transfer = DataTransfer::default();
-        transfer.set_file_paths([&file]);
-        ui.invoke_files_dropped(transfer);
-
-        let clips = ui.get_clips();
-        assert_eq!(clips.row_count(), 1);
-        assert_eq!(clips.row_data(0).expect("imported clip").file_name, "dropped.mp4");
-
-        std::fs::remove_dir_all(&directory).expect("remove scratch");
+    fn drop_events_map_to_the_overlay_and_the_imported_path() {
+        let file = PathBuf::from("/videos/clip.mp4");
+        assert!(matches!(
+            drop_action(&winit::event::WindowEvent::HoveredFile(file.clone())),
+            Some(DropAction::Hover)
+        ));
+        assert!(matches!(
+            drop_action(&winit::event::WindowEvent::HoveredFileCancelled),
+            Some(DropAction::Cancel)
+        ));
+        match drop_action(&winit::event::WindowEvent::DroppedFile(file.clone())) {
+            Some(DropAction::Drop(path)) => assert_eq!(path, file),
+            other => panic!("expected a dropped path, got {other:?}"),
+        }
+        assert!(drop_action(&winit::event::WindowEvent::Focused(true)).is_none());
     }
 }

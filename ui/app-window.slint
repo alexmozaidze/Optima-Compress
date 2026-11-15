@@ -12,6 +12,8 @@ export component AppWindow inherits Window {
     callback compress-requested;
     // NOTE: the host puts a finished clip's output path on the system clipboard.
     callback copy-requested(string);
+    // NOTE: the winit backend never fires the DropArea, so the host tracks the drag itself.
+    in-out property <bool> file-drag-active: false;
 
     title: "QuickClip Compress";
     background: Theme.window-bg;
@@ -260,6 +262,7 @@ export component AppWindow inherits Window {
     window-drop := DropTarget {
         width: root.width;
         height: root.height;
+        external-drag: root.file-drag-active;
         files-dropped(data) => { root.files-dropped(data); }
     }
 }
