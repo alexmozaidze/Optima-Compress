@@ -8,18 +8,36 @@ edition = "2024"
 [dependencies]
 # Backend and renderer are pinned rather than inherited from slint's defaults, so Qt can never
 # enter the build. Mirrors slint's default set with backend-winit in place of backend-default.
+# NOTE: winit-only, with three renderers picked in Slint's documented order: Skia, then FemtoVG,
+# then software. Skia comes first because slint-viewer renders this UI with Skia and FemtoVG's text
+# rasteriser makes the same markup look softer. Do not add another backend: Slint tries Qt before
+# winit, and the Qt renderer is QPainter, software-only.
 slint = { version = "1.18.1", default-features = false, features = [
     "std",
     "backend-winit",
+    "renderer-skia",
     "renderer-femtovg",
     "renderer-software",
     "accessibility",
     "compat-1-2",
     "system-tray",
 ] }
+# Text-only clipboard for the per-row Copy action. The default features pull image support the
+# app never uses; wayland-data-control covers the compositor the app runs under.
+arboard = { version = "3.7", default-features = false, features = ["wayland-data-control"] }
 
 [build-dependencies]
 slint-build = "1.18.1"
+
+[profile.dev]
+# The UI is interactive; the generated markup code stays cheap to rebuild.
+opt-level = 1
+# Line tables only: keeps breakpoints and file:line, cuts link time, startup and binary size.
+debug = 1
+
+[profile.dev.package."*"]
+# Slint's runtime, renderer and font stack do the per-frame work.
+opt-level = 3
 
 [profile.release]
 codegen-units = 1
