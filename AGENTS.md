@@ -2,14 +2,18 @@
 
 A Slint desktop app for compressing gameplay clips to the size limits of the places they get
 shared to. The UI is currently the whole product: `ui/app-window.slint` composes the interface
-from shared theme and component modules. The Rust side is still the template's entry point
-with no application logic.
+from shared theme and component modules. The Rust host only puts a finished clip's output path
+on the system clipboard.
 
 ## Setup
 
 Rust toolchain, plus the Slint CLI tools on `PATH`: `slint-viewer` (compile check, headless
 render) and `slint-lsp` (editor support). Take both from the Slint release matching the version
 pinned in `Cargo.toml`.
+
+`slint-viewer` renders with Skia, so the app enables `renderer-skia` too: with FemtoVG the same
+markup looks softer beside the viewer. The app is winit-only and Slint's renderer order is Skia,
+then FemtoVG, then software; keep it that way.
 
 ## Build
 
@@ -20,7 +24,8 @@ fails on `.slint` errors as well as Rust ones, and `cargo run` opens the window.
 
 Prototype interactions must work in `slint-viewer --style cosmic-dark --auto-reload ui/app-window.slint`, which
 does not run Rust callback handlers. A passing compiled-app check alone does not verify this
-workflow.
+workflow. The one exception is a finished clip's Copy action, which writes the clipboard from the
+Rust host and therefore needs the compiled app to verify.
 
 UI work is not done until it has been looked at. Three levels, cheapest first:
 
