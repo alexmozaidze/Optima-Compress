@@ -97,7 +97,7 @@ export component AudioTrackRow inherits Rectangle {
         root.toggled(root.mixed || !root.enabled);
     }
 
-    min-height: root.compact ? Theme.audio-row-height-compact : Theme.audio-row-height;
+    min-height: root.compact ? Theme.audio-row-height-stacked : Theme.audio-row-height;
     vertical-stretch: 0;
     background: row-touch.has-hover ? Theme.segment-hover : transparent;
 
@@ -119,7 +119,7 @@ export component AudioTrackRow inherits Rectangle {
             text: "\{root.track-number}";
             width: 11px;
             color: Theme.text-dim;
-            font-size: 0.92rem;
+            font-size: Theme.font-size-small;
             vertical-alignment: center;
         }
         FlexboxLayout {
@@ -142,7 +142,7 @@ export component AudioTrackRow inherits Rectangle {
                 width: root.compact ? root.width - 76px : self.preferred-width;
                 text: root.names-differ ? (root.name-mismatch-count == 1 ? "2 names" : "Names differ") : root.track-info;
                 color: root.names-differ ? Theme.warning : Theme.text-dim;
-                font-size: 0.92rem;
+                font-size: Theme.font-size-small;
                 wrap: word-wrap;
                 vertical-alignment: center;
             }

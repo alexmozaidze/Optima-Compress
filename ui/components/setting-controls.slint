@@ -5,7 +5,7 @@ export component SectionLabel inherits Text {
     preferred-width: 0px;
 
     color: Theme.text-dim;
-    font-size: 0.85rem;
+    font-size: Theme.font-size-caption;
     font-weight: 700;
     letter-spacing: 0.7px;
     height: Math.max(15px, self.preferred-height);
@@ -30,14 +30,19 @@ export component SettingColumn inherits VerticalLayout {
 
 export component InlineLabel inherits Text {
     color: Theme.text-dim;
-    font-size: 0.92rem;
+    font-size: Theme.font-size-small;
     height: Theme.field-height;
     vertical-alignment: center;
 }
 
-export component AttachedDetailBackground inherits Rectangle {
+export component AttachedDetailShell inherits Rectangle {
     in property <length> detail-width;
     in property <length> header-height;
+    in property <bool> detail-visible;
+
+    height: body.min-height;
+    border-radius: Theme.radius-segment;
+    clip: true;
 
     Rectangle {
         x: root.width - root.detail-width;
@@ -46,6 +51,7 @@ export component AttachedDetailBackground inherits Rectangle {
         background: Theme.segment-bg;
         border-radius: Theme.radius-segment;
         border-top-left-radius: 0px;
+        visible: root.detail-visible;
     }
 
     Rectangle {
@@ -55,6 +61,7 @@ export component AttachedDetailBackground inherits Rectangle {
         height: root.header-height + Theme.radius-segment;
         background: Theme.segment-bg;
         clip: true;
+        visible: root.detail-visible;
 
         Rectangle {
             x: -Theme.radius-segment;
@@ -64,6 +71,12 @@ export component AttachedDetailBackground inherits Rectangle {
             border-radius: Theme.radius-segment;
             background: Theme.window-bg;
         }
+    }
+
+    body := VerticalLayout {
+        spacing: 0px;
+
+        @children
     }
 }
 

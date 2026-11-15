@@ -27,28 +27,3 @@ export component CheckSquare inherits Rectangle {
         clicked => { root.checked = !root.checked; }
     }
 }
-
-export component CheckItem inherits HorizontalLayout {
-    in-out property <bool> checked;
-    in property <string> label;
-    out property <length> label-width: label-text.preferred-width;
-
-    spacing: 8.4px;
-    alignment: start;
-
-    VerticalLayout {
-        alignment: center;
-        CheckSquare {
-            checked <=> root.checked;
-        }
-    }
-
-    label-text := Text {
-        width: root.width - 25.4px;
-        text: root.label;
-        color: Theme.text;
-        font-size: 1.15rem;
-        wrap: word-wrap;
-        vertical-alignment: center;
-    }
-}

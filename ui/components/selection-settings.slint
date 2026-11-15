@@ -1,12 +1,12 @@
 import { Theme } from "../theme.slint";
-import { AudioTrack, ClipData, EncodingField, EncodingConflicts } from "../clip-model.slint";
+import { AudioTrack, ClipData, EncodingField, EncodingConflicts, EncodingPresets } from "../clip-model.slint";
 import { ScrollView } from "std-widgets.slint";
 import { ScrollRail } from "scroll-rail.slint";
 import { ClickFocusArea, Divider } from "primitives.slint";
 import { SegmentedBar } from "segmented-bar.slint";
 import { SharingPlatform } from "platform-icon.slint";
 import { AudioTrackRow } from "audio-track-row.slint";
-import { SectionLabel, SettingColumn, InlineLabel, AttachedDetailBackground, InputGroup, NumberField, Reveal } from "setting-controls.slint";
+import { SectionLabel, SettingColumn, InlineLabel, AttachedDetailShell, InputGroup, NumberField, Reveal } from "setting-controls.slint";
 
 export component SelectionSettings inherits Rectangle {
     in property <int> selected-count;
@@ -50,7 +50,7 @@ export component SelectionSettings inherits Rectangle {
     // scrollbar cannot appear from fractional layout rounding.
     property <length> content-fit-slack: 1px;
     property <int> minimum-audio-rows: 5;
-    property <length> audio-row-height: root.tablet ? Theme.audio-row-height-compact : Theme.audio-row-height;
+    property <length> audio-row-height: root.tablet ? Theme.audio-row-height-stacked : Theme.audio-row-height;
     property <length> minimum-audio-height: root.minimum-audio-rows * root.audio-row-height
         + (root.minimum-audio-rows - 1) * 1px;
     property <length> reserved-custom-height: frame-rate-fields.height + (root.tablet
@@ -152,8 +152,9 @@ export component SelectionSettings inherits Rectangle {
                         codec-bar := SegmentedBar {
                             enabled: root.editable;
                             vertical: root.phone;
-                            options: ["Compatibility (H.264)", "Quality (AV1)"];
-                            selected: !root.editable || root.conflicts.codec ? -1 : root.codec;
+                            options: EncodingPresets.codec-labels;
+                            has-selection: root.editable && !root.conflicts.codec;
+                            selected: root.codec;
                             selected-changed(index) => {
                                 root.codec = index;
                                 root.option-edited(EncodingField.codec);
@@ -164,48 +165,38 @@ export component SelectionSettings inherits Rectangle {
                         width: root.setting-width;
                         title: "FPS";
 
-                        Rectangle {
-                            height: frame-rate-bar.height + frame-rate-reveal.height;
-                            border-radius: Theme.radius-segment;
-                            clip: true;
+                        AttachedDetailShell {
+                            detail-width: frame-rate-fields.width;
+                            header-height: frame-rate-bar.height;
+                            detail-visible: frame-rate-reveal.height > 0px;
 
-                            AttachedDetailBackground {
-                                width: parent.width;
-                                height: parent.height;
-                                detail-width: frame-rate-fields.width;
-                                header-height: frame-rate-bar.height;
-                                visible: frame-rate-reveal.height > 0px;
-                            }
-                            VerticalLayout {
-                                spacing: 0px;
-
-                                frame-rate-bar := SegmentedBar {
-                                    enabled: root.editable;
-                                    vertical: root.phone;
-                                    attached-detail: !root.conflicts.frame-rate && root.frame-rate == 3;
-                                    options: ["60", "30", "15", "Custom"];
-                                    selected: !root.editable || root.conflicts.frame-rate ? -1 : root.frame-rate;
-                                    selected-changed(index) => {
-                                        root.frame-rate = index;
-                                        root.option-edited(EncodingField.frame-rate);
-                                    }
+                            frame-rate-bar := SegmentedBar {
+                                enabled: root.editable;
+                                vertical: root.phone;
+                                attached-detail: !root.conflicts.frame-rate && EncodingPresets.is-custom-frame-rate(root.frame-rate);
+                                options: EncodingPresets.frame-rate-labels;
+                                has-selection: root.editable && !root.conflicts.frame-rate;
+                                selected: root.frame-rate;
+                                selected-changed(index) => {
+                                    root.frame-rate = index;
+                                    root.option-edited(EncodingField.frame-rate);
                                 }
-                                frame-rate-reveal := Reveal {
-                                    shown: !root.conflicts.frame-rate && root.frame-rate == 3;
+                            }
+                            frame-rate-reveal := Reveal {
+                                shown: !root.conflicts.frame-rate && EncodingPresets.is-custom-frame-rate(root.frame-rate);
 
-                                    frame-rate-fields := InputGroup {
-                                        focused: frame-rate-input.has-focus;
+                                frame-rate-fields := InputGroup {
+                                    focused: frame-rate-input.has-focus;
 
-                                        frame-rate-input := NumberField {
-                                            enabled: root.editable;
-                                            read-only: !root.editable;
-                                            value <=> root.custom-frame-rate;
-                                            accessible-description: root.conflicts.custom-frame-rate ? "Mixed values" : "";
-                                            accessible-label: "Custom frames per second";
-                                            edited => { root.option-edited(EncodingField.custom-frame-rate); }
-                                        }
-                                        InlineLabel { text: "FPS"; }
+                                    frame-rate-input := NumberField {
+                                        enabled: root.editable;
+                                        read-only: !root.editable;
+                                        value <=> root.custom-frame-rate;
+                                        accessible-description: root.conflicts.custom-frame-rate ? "Mixed values" : "";
+                                        accessible-label: "Custom frames per second";
+                                        edited => { root.option-edited(EncodingField.custom-frame-rate); }
                                     }
+                                    InlineLabel { text: "FPS"; }
                                 }
                             }
                         }
@@ -223,49 +214,39 @@ export component SelectionSettings inherits Rectangle {
                         width: root.setting-width;
                         title: "TARGET SIZE";
 
-                        Rectangle {
-                            height: size-bar.height + size-reveal.height;
-                            border-radius: Theme.radius-segment;
-                            clip: true;
+                        AttachedDetailShell {
+                            detail-width: size-fields.width;
+                            header-height: size-bar.height;
+                            detail-visible: size-reveal.height > 0px;
 
-                            AttachedDetailBackground {
-                                width: parent.width;
-                                height: parent.height;
-                                detail-width: size-fields.width;
-                                header-height: size-bar.height;
-                                visible: size-reveal.height > 0px;
-                            }
-                            VerticalLayout {
-                                spacing: 0px;
-
-                                size-bar := SegmentedBar {
-                                    enabled: root.editable;
-                                    vertical: root.phone;
-                                    attached-detail: !root.conflicts.size && root.size == 3;
-                                    options: ["20 MB", "25 MB", "64 MB", "Custom"];
-                                    icons: [SharingPlatform.discord, SharingPlatform.gmail, SharingPlatform.whatsapp, SharingPlatform.none];
-                                    selected: !root.editable || root.conflicts.size ? -1 : root.size;
-                                    selected-changed(index) => {
-                                        root.size = index;
-                                        root.option-edited(EncodingField.size);
-                                    }
+                            size-bar := SegmentedBar {
+                                enabled: root.editable;
+                                vertical: root.phone;
+                                attached-detail: !root.conflicts.size && EncodingPresets.is-custom-size(root.size);
+                                options: EncodingPresets.size-labels;
+                                icons: [SharingPlatform.discord, SharingPlatform.gmail, SharingPlatform.whatsapp, SharingPlatform.none];
+                                has-selection: root.editable && !root.conflicts.size;
+                                selected: root.size;
+                                selected-changed(index) => {
+                                    root.size = index;
+                                    root.option-edited(EncodingField.size);
                                 }
-                                size-reveal := Reveal {
-                                    shown: !root.conflicts.size && root.size == 3;
+                            }
+                            size-reveal := Reveal {
+                                shown: !root.conflicts.size && EncodingPresets.is-custom-size(root.size);
 
-                                    size-fields := InputGroup {
-                                        focused: size-input.has-focus;
+                                size-fields := InputGroup {
+                                    focused: size-input.has-focus;
 
-                                        size-input := NumberField {
-                                            enabled: root.editable;
-                                            read-only: !root.editable;
-                                            value <=> root.custom-size;
-                                            accessible-description: root.conflicts.custom-size ? "Mixed values" : "";
-                                            accessible-label: "Target size in megabytes";
-                                            edited => { root.option-edited(EncodingField.custom-size); }
-                                        }
-                                        InlineLabel { text: "MB"; }
+                                    size-input := NumberField {
+                                        enabled: root.editable;
+                                        read-only: !root.editable;
+                                        value <=> root.custom-size;
+                                        accessible-description: root.conflicts.custom-size ? "Mixed values" : "";
+                                        accessible-label: "Target size in megabytes";
+                                        edited => { root.option-edited(EncodingField.custom-size); }
                                     }
+                                    InlineLabel { text: "MB"; }
                                 }
                             }
                         }
@@ -274,59 +255,49 @@ export component SelectionSettings inherits Rectangle {
                         width: root.setting-width;
                         title: "RESOLUTION";
 
-                        Rectangle {
-                            height: resolution-bar.height + resolution-reveal.height;
-                            border-radius: Theme.radius-segment;
-                            clip: true;
+                        AttachedDetailShell {
+                            detail-width: resolution-fields.width;
+                            header-height: resolution-bar.height;
+                            detail-visible: resolution-reveal.height > 0px;
 
-                            AttachedDetailBackground {
-                                width: parent.width;
-                                height: parent.height;
-                                detail-width: resolution-fields.width;
-                                header-height: resolution-bar.height;
-                                visible: resolution-reveal.height > 0px;
-                            }
-                            VerticalLayout {
-                                spacing: 0px;
-
-                                resolution-bar := SegmentedBar {
-                                    enabled: root.editable;
-                                    vertical: root.phone;
-                                    attached-detail: !root.conflicts.resolution && root.resolution == 3;
-                                    options: ["480p", "720p", "1080p", "Custom"];
-                                    selected: !root.editable || root.conflicts.resolution ? -1 : root.resolution;
-                                    selected-changed(index) => {
-                                        root.resolution = index;
-                                        root.option-edited(EncodingField.resolution);
-                                    }
+                            resolution-bar := SegmentedBar {
+                                enabled: root.editable;
+                                vertical: root.phone;
+                                attached-detail: !root.conflicts.resolution && EncodingPresets.is-custom-resolution(root.resolution);
+                                options: EncodingPresets.resolution-labels;
+                                has-selection: root.editable && !root.conflicts.resolution;
+                                selected: root.resolution;
+                                selected-changed(index) => {
+                                    root.resolution = index;
+                                    root.option-edited(EncodingField.resolution);
                                 }
-                                resolution-reveal := Reveal {
-                                    shown: !root.conflicts.resolution && root.resolution == 3;
+                            }
+                            resolution-reveal := Reveal {
+                                shown: !root.conflicts.resolution && EncodingPresets.is-custom-resolution(root.resolution);
 
-                                    resolution-fields := InputGroup {
-                                        focused: custom-width.has-focus || custom-height.has-focus;
+                                resolution-fields := InputGroup {
+                                    focused: custom-width.has-focus || custom-height.has-focus;
 
-                                        custom-width := NumberField {
-                                            enabled: root.editable;
-                                            read-only: !root.editable;
-                                            field-width: 54px;
-                                            value <=> root.custom-width;
-                                            accessible-description: root.conflicts.custom-width ? "Mixed values" : "";
-                                            accessible-label: "Width in pixels";
-                                            edited => { root.option-edited(EncodingField.custom-width); }
-                                        }
-                                        InlineLabel { text: "×"; }
-                                        custom-height := NumberField {
-                                            enabled: root.editable;
-                                            read-only: !root.editable;
-                                            field-width: 54px;
-                                            value <=> root.custom-height;
-                                            accessible-description: root.conflicts.custom-height ? "Mixed values" : "";
-                                            accessible-label: "Height in pixels";
-                                            edited => { root.option-edited(EncodingField.custom-height); }
-                                        }
-                                        InlineLabel { text: "px"; }
+                                    custom-width := NumberField {
+                                        enabled: root.editable;
+                                        read-only: !root.editable;
+                                        field-width: 54px;
+                                        value <=> root.custom-width;
+                                        accessible-description: root.conflicts.custom-width ? "Mixed values" : "";
+                                        accessible-label: "Width in pixels";
+                                        edited => { root.option-edited(EncodingField.custom-width); }
                                     }
+                                    InlineLabel { text: "×"; }
+                                    custom-height := NumberField {
+                                        enabled: root.editable;
+                                        read-only: !root.editable;
+                                        field-width: 54px;
+                                        value <=> root.custom-height;
+                                        accessible-description: root.conflicts.custom-height ? "Mixed values" : "";
+                                        accessible-label: "Height in pixels";
+                                        edited => { root.option-edited(EncodingField.custom-height); }
+                                    }
+                                    InlineLabel { text: "px"; }
                                 }
                             }
                         }
@@ -388,7 +359,7 @@ export component SelectionSettings inherits Rectangle {
                                     height: self.preferred-height;
                                     text: "Track names differ between videos. The same track number may contain different audio in each video, so check your selection to avoid merging audio tracks in unintended ways.";
                                     color: Theme.warning;
-                                    font-size: 0.92rem;
+                                    font-size: Theme.font-size-small;
                                     wrap: word-wrap;
                                 }
                             }

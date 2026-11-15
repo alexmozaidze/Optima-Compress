@@ -42,6 +42,7 @@ component SegmentedOption inherits Rectangle {
     in property <SharingPlatform> icon;
     in property <bool> selected;
     in property <bool> enabled: true;
+    in property <bool> hovered;
     callback activated();
 
     accessible-role: radio-button;
@@ -56,6 +57,15 @@ component SegmentedOption inherits Rectangle {
     min-width: 0px;
     preferred-width: 0px;
 
+    Rectangle {
+        x: 3px;
+        y: 3px;
+        width: parent.width - 6px;
+        height: parent.height - 6px;
+        border-radius: Theme.radius-pill;
+        background: Theme.segment-hover;
+        visible: root.hovered;
+    }
     SegmentedLabel {
         width: root.width;
         height: root.height;
@@ -68,6 +78,7 @@ component SegmentedOption inherits Rectangle {
 export component SegmentedBar inherits Rectangle {
     in property <[string]> options;
     in property <[SharingPlatform]> icons;
+    in property <bool> has-selection;
     in property <int> selected;
     in property <bool> vertical;
     in property <bool> attached-detail;
@@ -89,34 +100,18 @@ export component SegmentedBar inherits Rectangle {
     property <bool> slide-pill;
 
     init => {
-        root.had-selection = root.selected >= 0;
-        if (root.selected >= 0) {
-            root.pill-index = root.selected;
-        }
+        root.sync-pill();
     }
 
-    changed selected => {
-        root.slide-pill = root.had-selection && root.selected >= 0;
-        root.had-selection = root.selected >= 0;
-        if (root.selected >= 0) {
+    changed has-selection => { root.sync-pill(); }
+    changed selected => { root.sync-pill(); }
+
+    function sync-pill() {
+        let showing = root.has-selection;
+        root.slide-pill = root.had-selection && showing && root.selected != root.pill-index;
+        root.had-selection = showing;
+        if (showing) {
             root.pill-index = root.selected;
-        }
-    }
-
-    for option[i] in root.options : Rectangle {
-        x: root.vertical ? 0px : i * root.cell-width;
-        y: root.vertical ? i * root.cell-height : 0px;
-        width: root.cell-width;
-        height: root.cell-height;
-
-        Rectangle {
-            x: 3px;
-            y: 3px;
-            width: parent.width - 6px;
-            height: parent.height - 6px;
-            border-radius: Theme.radius-pill;
-            background: Theme.segment-hover;
-            visible: touch.has-hover && i == root.option-at-pointer && i != root.selected;
         }
     }
 
@@ -127,7 +122,8 @@ export component SegmentedBar inherits Rectangle {
         height: root.cell-height;
         label: option;
         icon: i < root.icons.length ? root.icons[i] : SharingPlatform.none;
-        selected: i == root.selected;
+        selected: root.has-selection && i == root.selected;
+        hovered: touch.has-hover && i == root.option-at-pointer && !(root.has-selection && i == root.selected);
         enabled: root.enabled;
         activated => { root.selected-changed(i); }
     }
@@ -139,7 +135,7 @@ export component SegmentedBar inherits Rectangle {
         height: root.cell-height - 6px;
         border-radius: Theme.radius-pill;
         background: Theme.segment-selected;
-        opacity: root.selected >= 0 ? 1 : 0;
+        opacity: root.has-selection ? 1 : 0;
         clip: true;
 
         for option[i] in root.options : SegmentedLabel {
