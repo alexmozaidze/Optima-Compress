@@ -1,4 +1,4 @@
-"""Run after SLINT_EMIT_DEBUG_INFO=1 cargo build --features slint/mcp.
+"""Run after SLINT_EMIT_DEBUG_INFO=1 cargo build --features slint/mcp,demo-clips.
 
 AudioOverflowTests loads fixture data through slint-viewer, so it needs slint-viewer and Xvfb;
 it skips when either is missing.

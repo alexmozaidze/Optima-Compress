@@ -2,8 +2,8 @@
 
 A Slint desktop app for compressing gameplay clips to the size limits of the places they get
 shared to. The UI is currently the whole product: `ui/app-window.slint` composes the interface
-from shared theme and component modules. The Rust host only puts a finished clip's output path
-on the system clipboard.
+from shared theme and component modules. The Rust host imports files dropped on the window and
+puts a finished clip's output path on the system clipboard.
 
 ## Setup
 
@@ -36,7 +36,7 @@ UI work is not done until it has been looked at. Three levels, cheapest first:
 - Interactive behaviour needs the app's embedded MCP server:
 
   ```
-  SLINT_EMIT_DEBUG_INFO=1 cargo build --features slint/mcp
+  SLINT_EMIT_DEBUG_INFO=1 cargo build --features slint/mcp,demo-clips
   SLINT_MCP_PORT=9315 SLINT_BACKEND=headless ./target/debug/slint-rust-template
   ```
 
@@ -47,7 +47,8 @@ UI work is not done until it has been looked at. Three levels, cheapest first:
   With that debug build ready, `python3 tests/ui_selection.py` runs the selection and per-video
   option regression checks in its own short-lived headless app processes. Rebuild after editing
   markup or the demo clips before running them. The binary embeds the markup from its last build,
-  while the viewer compiles at each launch.
+  while the viewer compiles at each launch. `demo-clips` builds `tests/fixtures/demo-window.slint`
+  so the regressions run against seeded clips; a plain `cargo build` starts with an empty list.
 
 ## Map
 

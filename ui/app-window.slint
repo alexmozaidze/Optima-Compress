@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { ClipData, ClipState, EncodingOptions, EncodingField, EncodingPresets } from "clip-model.slint";
+import { ClipData, EncodingOptions, EncodingField, EncodingPresets } from "clip-model.slint";
 import { DropTarget } from "components/drop-target.slint";
 import { VideoList } from "components/video-list.slint";
 import { SelectionSettings } from "components/selection-settings.slint";
@@ -43,38 +43,7 @@ export component AppWindow inherits Window {
     out property <EncodingOptions> default-options: EncodingPresets.defaults;
 
     // NOTE: the host supplies paths, display metadata and source-ordered audio. Selection, options and audio flags remain UI-owned.
-    in-out property <[ClipData]> clips: [
-        {
-            file-name: "ShadowPlay_Clip_01.mp4", source-path: "", output-path: "",
-            metadata: "2:45 · 1080p · 142 MB", state: ClipState.waiting,
-            progress: 0, selected: false, audio-tracks: [], options: root.default-options,
-        },
-        {
-            file-name: "Ranked_Highlights.mp4", source-path: "", output-path: "",
-            metadata: "1:12 · 1080p · 86 MB", state: ClipState.compressing,
-            progress: 0.58, selected: false, options: root.default-options,
-            audio-tracks: [
-                { name: "Game audio", info: "AAC · Stereo · 48 kHz", enabled: true },
-                { name: "Microphone", info: "AAC · Mono · 48 kHz", enabled: true },
-                { name: "Party chat", info: "Opus · Stereo · 48 kHz", enabled: false },
-                { name: "Music", info: "AAC · Stereo · 48 kHz", enabled: false },
-                { name: "Commentary", info: "AAC · Mono · 48 kHz", enabled: false },
-                { name: "System audio", info: "AAC · Stereo · 48 kHz", enabled: false },
-                { name: "Alerts", info: "AAC · Mono · 48 kHz", enabled: false },
-                { name: "Voice chat", info: "Opus · Mono · 48 kHz", enabled: true },
-                { name: "Sound effects", info: "AAC · Stereo · 48 kHz", enabled: false },
-            ],
-        },
-        {
-            file-name: "Friend_Clip.mp4", source-path: "", output-path: "/home/alex/Videos/Compressed/Friend_Clip.mp4",
-            metadata: "0:30 · 720p · 18 MB", state: ClipState.finished,
-            progress: 1, selected: false, options: root.default-options,
-            audio-tracks: [
-                { name: "Desktop audio", info: "AAC · Stereo · 48 kHz", enabled: true },
-                { name: "Microphone", info: "AAC · Mono · 44.1 kHz", enabled: true },
-            ],
-        },
-    ];
+    in-out property <[ClipData]> clips;
 
     selection-toolbar := Rectangle {
         x: 0px;

@@ -1,1 +1,124 @@
-{"viewport-width":1141,"viewport-height":1300,"text-size":28}
+{
+    "viewport-width": 1141,
+    "viewport-height": 1300,
+    "text-size": 28,
+    "fixture-clips": [
+        {
+            "file-name": "ShadowPlay_Clip_01.mp4",
+            "source-path": "",
+            "output-path": "",
+            "metadata": "2:45 \u00b7 1080p \u00b7 142 MB",
+            "state": "waiting",
+            "progress": 0,
+            "selected": false,
+            "audio-tracks": [],
+            "options": {
+                "codec": 0,
+                "frame-rate": 0,
+                "custom-frame-rate": "60",
+                "size": 0,
+                "custom-size": "8",
+                "resolution": 1,
+                "custom-width": "1920",
+                "custom-height": "1080"
+            }
+        },
+        {
+            "file-name": "Ranked_Highlights.mp4",
+            "source-path": "",
+            "output-path": "",
+            "metadata": "1:12 \u00b7 1080p \u00b7 86 MB",
+            "state": "compressing",
+            "progress": 0.58,
+            "selected": false,
+            "audio-tracks": [
+                {
+                    "name": "Game audio",
+                    "info": "AAC \u00b7 Stereo \u00b7 48 kHz",
+                    "enabled": true
+                },
+                {
+                    "name": "Microphone",
+                    "info": "AAC \u00b7 Mono \u00b7 48 kHz",
+                    "enabled": true
+                },
+                {
+                    "name": "Party chat",
+                    "info": "Opus \u00b7 Stereo \u00b7 48 kHz",
+                    "enabled": false
+                },
+                {
+                    "name": "Music",
+                    "info": "AAC \u00b7 Stereo \u00b7 48 kHz",
+                    "enabled": false
+                },
+                {
+                    "name": "Commentary",
+                    "info": "AAC \u00b7 Mono \u00b7 48 kHz",
+                    "enabled": false
+                },
+                {
+                    "name": "System audio",
+                    "info": "AAC \u00b7 Stereo \u00b7 48 kHz",
+                    "enabled": false
+                },
+                {
+                    "name": "Alerts",
+                    "info": "AAC \u00b7 Mono \u00b7 48 kHz",
+                    "enabled": false
+                },
+                {
+                    "name": "Voice chat",
+                    "info": "Opus \u00b7 Mono \u00b7 48 kHz",
+                    "enabled": true
+                },
+                {
+                    "name": "Sound effects",
+                    "info": "AAC \u00b7 Stereo \u00b7 48 kHz",
+                    "enabled": false
+                }
+            ],
+            "options": {
+                "codec": 0,
+                "frame-rate": 0,
+                "custom-frame-rate": "60",
+                "size": 0,
+                "custom-size": "8",
+                "resolution": 1,
+                "custom-width": "1920",
+                "custom-height": "1080"
+            }
+        },
+        {
+            "file-name": "Friend_Clip.mp4",
+            "source-path": "",
+            "output-path": "/home/alex/Videos/Compressed/Friend_Clip.mp4",
+            "metadata": "0:30 \u00b7 720p \u00b7 18 MB",
+            "state": "finished",
+            "progress": 1,
+            "selected": false,
+            "audio-tracks": [
+                {
+                    "name": "Desktop audio",
+                    "info": "AAC \u00b7 Stereo \u00b7 48 kHz",
+                    "enabled": true
+                },
+                {
+                    "name": "Microphone",
+                    "info": "AAC \u00b7 Mono \u00b7 44.1 kHz",
+                    "enabled": true
+                }
+            ],
+            "options": {
+                "codec": 0,
+                "frame-rate": 0,
+                "custom-frame-rate": "60",
+                "size": 0,
+                "custom-size": "8",
+                "resolution": 1,
+                "custom-width": "1920",
+                "custom-height": "1080"
+            }
+        }
+    ]
+}

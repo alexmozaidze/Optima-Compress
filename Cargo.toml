@@ -29,6 +29,10 @@ arboard = { version = "3.7", default-features = false, features = ["wayland-data
 [build-dependencies]
 slint-build = "1.18.1"
 
+[features]
+# Test-only: builds tests/fixtures/demo-window.slint instead, so the regressions have seeded clips.
+demo-clips = []
+
 [profile.dev]
 # The UI is interactive; the generated markup code stays cheap to rebuild.
 opt-level = 1
