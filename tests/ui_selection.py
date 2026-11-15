@@ -114,7 +114,8 @@ class AppWindowTests(unittest.TestCase):
             data=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
         )
-        with urllib.request.urlopen(request, timeout=10) as response:
+        timeout = 30 if name == "drag_element" else 10
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             result = json.load(response)["result"]
         self.assertFalse(result.get("isError"), result)
         return json.loads(result["content"][0]["text"])
@@ -212,17 +213,21 @@ class AppWindowTests(unittest.TestCase):
             self.assertLess(time.monotonic(), deadline, f"Element opacity did not reach {opacity}")
             time.sleep(0.02)
 
+    def wait_for_partial_opacity(self, element):
+        deadline = time.monotonic() + 2
+        while True:
+            opacity = self.call("get_element_properties", elementHandle=element).get("computedOpacity", 0)
+            if 0 < opacity < 1:
+                return opacity
+            self.assertLess(time.monotonic(), deadline, f"No intermediate opacity observed: {opacity}")
+            time.sleep(0.02)
+
     def menu_controls(self):
         elements = self.call("get_element_tree", elementHandle=self.find("AppWindow::settings-panel"), maxElements=1000)["elements"]
         return [entry for entry in elements if entry.get("accessibleRole") in ["RadioButton", "Checkbox", "TextInput"]]
 
     def scroll_settings(self, delta):
-        scroll = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-scroll"))
-        position = {
-            "x": scroll["absolutePosition"].get("x", 0) + scroll["size"]["width"] / 2,
-            "y": scroll["absolutePosition"]["y"] + 1,
-        }
-        self.call("dispatch_pointer_scroll", windowHandle=self.window, position=position, deltaY=delta, deltaX=0)
+        self.call("scroll_element", elementHandle=self.find("SelectionSettings::settings-scroll"), deltaY=delta, deltaX=0)
 
     def audio_tracks(self):
         self.scroll_settings(-10000)
@@ -299,7 +304,10 @@ class AppWindowTests(unittest.TestCase):
 class SelectionTests(AppWindowTests):
     def environment(self, port):
         environment = super().environment(port)
-        if self._testMethodName == "test_highlight_still_slides_between_selected_options":
+        if self._testMethodName in {
+            "test_row_selection_highlight_fades_in_and_out",
+            "test_highlight_still_slides_between_selected_options",
+        }:
             environment["SLINT_SLOW_ANIMATIONS"] = "4"
         return environment
 
@@ -403,6 +411,34 @@ class SelectionTests(AppWindowTests):
             if entry.get("accessibleLabel") == "Compress" and entry.get("accessibleRole") == "Button"
         )
         self.assertFalse(compress.get("accessibleEnabled", False))
+
+    def test_compress_action_starts_only_that_video(self):
+        self.reveal_row(self.rows[0])
+        self.press_row_action("Compress ShadowPlay_Clip_01.mp4")
+        labels = self.labels(self.rows[0])
+        self.assertIn("Compressing · 0%", labels)
+        self.assertIn("Cancel ShadowPlay_Clip_01.mp4", labels)
+        self.assertNotIn("Compress ShadowPlay_Clip_01.mp4", labels)
+        self.assertIn("Compressing · 58%", self.labels(self.rows[1]))
+        self.assertIn("Ready to copy", self.labels(self.rows[2]))
+        self.assertEqual(self.selected(), [False, False, False])
+
+    def test_cancel_action_returns_that_video_to_waiting(self):
+        self.reveal_row(self.rows[1])
+        self.press_row_action("Cancel Ranked_Highlights.mp4")
+        labels = self.labels(self.rows[1])
+        self.assertIn("Waiting for compression", labels)
+        self.assertIn("Compress Ranked_Highlights.mp4", labels)
+        self.assertNotIn("Cancel Ranked_Highlights.mp4", labels)
+        self.assertIn("Waiting for compression", self.labels(self.rows[0]))
+
+    def test_finished_row_offers_copy_instead_of_compress(self):
+        self.reveal_row(self.rows[2])
+        labels = self.labels(self.rows[2])
+        self.assertIn("Copy Friend_Clip.mp4", labels)
+        self.assertNotIn("Compress Friend_Clip.mp4", labels)
+        self.assertNotIn("Cancel Friend_Clip.mp4", labels)
+        self.assertIn("Waiting for compression", self.labels(self.rows[0]))
 
     def test_selection_toolbar_sits_above_the_videos_not_in_the_settings(self):
         self.click(self.rows[1])
@@ -545,19 +581,20 @@ class SelectionTests(AppWindowTests):
         self.assertEqual(self.call("get_element_properties", elementHandle=panel)["size"], shown["size"])
 
     def test_row_selection_highlight_fades_in_and_out(self):
-        self.click(self.rows[0])
         elements = self.call("get_element_tree", elementHandle=self.rows[0], maxElements=100)["elements"]
         highlight = next(
             entry["handle"] for entry in elements
             if any(item.get("id") == "ClipRow::selection-highlight" for item in entry.get("typeNamesAndIds", []))
         )
-        entering = self.call("get_element_properties", elementHandle=highlight).get("computedOpacity", 0)
+        self.wait_for_opacity(highlight, 0)
+        self.click(self.rows[0])
+        entering = self.wait_for_partial_opacity(highlight)
         self.assertGreater(entering, 0)
         self.assertLess(entering, 1)
         self.assertEqual(self.selected(), [True, False, False])
         self.wait_for_opacity(highlight, 1)
         self.click(self.rows[0], control=True)
-        leaving = self.call("get_element_properties", elementHandle=highlight).get("computedOpacity", 0)
+        leaving = self.wait_for_partial_opacity(highlight)
         self.assertGreater(leaving, 0)
         self.assertLess(leaving, 1)
         self.assertEqual(self.selected(), [False, False, False])
@@ -865,6 +902,34 @@ class AudioOverflowTests(ViewerTests):
                     self.call("get_element_properties", elementHandle=self.find("AppWindow::settings-panel"))["size"]["height"]
                 )
         self.assertAlmostEqual(max(heights), min(heights), delta=1)
+
+    def test_menu_setup_scroll_reaches_both_ends_and_clamps(self):
+        self.click(self.rows[1])
+        viewport = self.call("get_element_properties", elementHandle=self.find("SelectionSettings::settings-scroll"))
+        content = self.find("SelectionSettings::settings-content")
+        menu = self.call("get_element_properties", elementHandle=content)
+        self.assertGreater(
+            menu["size"]["height"], viewport["size"]["height"],
+            "The fixture must make the menu taller than its viewport",
+        )
+        self.scroll_settings(10000)
+        top_aligned = self.call("get_element_properties", elementHandle=content)["absolutePosition"]["y"]
+        self.assertAlmostEqual(top_aligned, viewport["absolutePosition"]["y"], delta=0.5)
+        self.scroll_settings(-10000)
+        bottom_aligned = self.call("get_element_properties", elementHandle=content)["absolutePosition"]["y"]
+        self.assertLess(bottom_aligned, top_aligned)
+        self.assertAlmostEqual(
+            bottom_aligned,
+            viewport["absolutePosition"]["y"] + viewport["size"]["height"] - menu["size"]["height"],
+            delta=1,
+        )
+        self.scroll_settings(10000)
+        restored = self.call("get_element_properties", elementHandle=content)["absolutePosition"]["y"]
+        self.assertAlmostEqual(restored, top_aligned, delta=0.5)
+        self.scroll_settings(10000)
+        self.assertAlmostEqual(
+            self.call("get_element_properties", elementHandle=content)["absolutePosition"]["y"], restored, delta=0.5,
+        )
 
     def test_wheel_over_audio_scrolls_the_menu_not_the_tracks_within_the_section(self):
         self.click(self.rows[1])
@@ -1193,6 +1258,19 @@ class MenuHeightTests(FooterResponsiveTests):
     fixture = ROOT / "tests/fixtures/menu-height.json"
     expected_size = {"width": 1141, "height": 1100}
 
+    def wait_for_reveal(self, reveal_id, fields_id):
+        reveal = self.find(f"SelectionSettings::{reveal_id}")
+        fields = self.call("get_element_properties", elementHandle=self.find(f"SelectionSettings::{fields_id}"))
+        expected_height = fields["size"]["height"]
+        self.assertGreater(expected_height, 0)
+        deadline = time.monotonic() + 2
+        while True:
+            height = self.call("get_element_properties", elementHandle=reveal)["size"].get("height", 0)
+            if abs(height - expected_height) < 0.1:
+                return
+            self.assertLess(time.monotonic(), deadline, f"{reveal_id} did not fully open: {height} / {expected_height}")
+            time.sleep(0.02)
+
     def expand_menu(self):
         window = self.call("get_element_properties", elementHandle=self.root)
         videos = self.call("get_element_properties", elementHandle=self.find("AppWindow::video-list"))
@@ -1232,8 +1310,13 @@ class MenuHeightTests(FooterResponsiveTests):
     def test_resize_maximum_includes_revealed_custom_fields(self):
         self.click(self.rows[2])
         initial = self.expand_menu()
-        for bar in ["frame-rate-bar", "size-bar", "resolution-bar"]:
+        for bar, reveal, fields in [
+            ("frame-rate-bar", "frame-rate-reveal", "frame-rate-fields"),
+            ("size-bar", "size-reveal", "size-fields"),
+            ("resolution-bar", "resolution-reveal", "resolution-fields"),
+        ]:
             self.choose(f"SelectionSettings::{bar}", "Custom")
+            self.wait_for_reveal(reveal, fields)
         expanded = self.expand_menu()
         self.assert_menu_matches_content_limit()
         self.assertGreater(expanded["size"]["height"], initial["size"]["height"])

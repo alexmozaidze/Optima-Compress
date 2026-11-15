@@ -3,6 +3,7 @@
         {
             "file-name": "Ranked_Highlights.mp4",
             "source-path": "",
+            "output-path": "",
             "metadata": "1:12 · 1080p · 86 MB",
             "state": "compressing",
             "progress": 0.58,
@@ -26,6 +27,7 @@
         {
             "file-name": "Friend_Clip.mp4",
             "source-path": "",
+            "output-path": "",
             "metadata": "0:30 · 720p · 18 MB",
             "state": "finished",
             "progress": 1,

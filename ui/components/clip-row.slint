@@ -26,16 +26,18 @@ component AudioTrackBadge inherits Rectangle {
     callback reported(int, int, length);
 
     property <length> diameter: Math.max(22px, number.preferred-width + 10px, number.preferred-height + 6px);
-    property <int> reported-revision: -1;
+    property <bool> has-reported: false;
+    property <int> reported-revision;
     property <int> reported-count;
     property <length> reported-width;
 
     function report() {
         let count = root.track.enabled ? 1 : 0;
         let width = root.track.enabled ? root.diameter + 4px : 0px;
-        let same-revision = root.reported-revision == root.revision;
+        let same-revision = root.has-reported && root.reported-revision == root.revision;
         root.reported(root.revision, count - (same-revision ? root.reported-count : 0),
             width - (same-revision ? root.reported-width : 0px));
+        root.has-reported = true;
         root.reported-revision = root.revision;
         root.reported-count = count;
         root.reported-width = width;
@@ -64,7 +66,7 @@ component AudioTrackBadge inherits Rectangle {
         number := Text {
             text: "\{root.track-number}";
             color: Theme.text;
-            font-size: 0.85rem;
+            font-size: Theme.font-size-caption;
             font-weight: 600;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -104,23 +106,23 @@ component EncodingFooter inherits GridLayout {
         Text {
             text: root.codec;
             color: Theme.text;
-            font-size: 0.92rem;
+            font-size: Theme.font-size-small;
             font-weight: 600;
         }
         Text {
             text: root.frame-rate + " FPS";
             color: Theme.text-dim;
-            font-size: 0.92rem;
+            font-size: Theme.font-size-small;
         }
         Text {
             text: root.resolution;
             color: Theme.text-dim;
-            font-size: 0.92rem;
+            font-size: Theme.font-size-small;
         }
         Text {
             text: root.target-size;
             color: Theme.text-dim;
-            font-size: 0.92rem;
+            font-size: Theme.font-size-small;
         }
     }
     FlexboxLayout {
@@ -149,13 +151,44 @@ component EncodingFooter inherits GridLayout {
         audio-state := Text {
             text: root.enabled-audio-count > 0 ? "" : root.audio-tracks.length == 0 ? "No audio" : "Off";
             color: Theme.text-dim;
-            font-size: 0.85rem;
+            font-size: Theme.font-size-caption;
         }
         for track[index] in root.audio-tracks : AudioTrackBadge {
             track: track;
             track-number: index + 1;
             revision: root.audio-revision;
             reported(revision, count, width) => { root.audio-reported(revision, count, width); }
+        }
+    }
+}
+
+component RowActionButton inherits Rectangle {
+    in property <image> icon;
+    in property <color> tint;
+    in property <string> action-label;
+    in property <string> tooltip;
+    callback activated;
+
+    width: 32px;
+    height: 32px;
+    border-radius: self.width / 2;
+    background: root.tint.with-alpha(action-touch.has-hover ? 0.28 : 0.14);
+
+    Image {
+        width: 16px;
+        height: 16px;
+        source: root.icon;
+        image-rendering: smooth;
+        colorize: root.tint;
+    }
+    action-touch := ClickFocusArea {
+        mouse-cursor: pointer;
+        accessible-role: button;
+        accessible-label: root.action-label;
+        accessible-action-default => { root.activated(); }
+        clicked => { root.activated(); }
+        Tooltip {
+            text: @markdown("\{root.tooltip}");
         }
     }
 }
@@ -174,6 +207,9 @@ export component ClipRow inherits Rectangle {
     in property <bool> phone;
     in property <bool> selected;
 
+    callback compress-requested;
+    callback cancel-requested;
+    callback copy-requested;
     callback delete-requested;
 
     accessible-role: list-item;
@@ -253,7 +289,7 @@ export component ClipRow inherits Rectangle {
                     height: self.preferred-height;
                     text: root.metadata;
                     color: Theme.text-dim;
-                    font-size: 0.92rem;
+                    font-size: Theme.font-size-small;
                     wrap: word-wrap;
                 }
                 HorizontalLayout {
@@ -287,25 +323,43 @@ export component ClipRow inherits Rectangle {
                 alignment: center;
                 horizontal-stretch: 0;
 
-                delete-button := Rectangle {
-                    width: 32px;
-                    height: 32px;
-                    border-radius: self.width / 2;
-                    background: delete-button-touch.has-hover ? Theme.danger.with-alpha(0.24) : Theme.danger.with-alpha(0.12);
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 8px;
 
-                    Image {
-                        width: 16px;
-                        height: 16px;
-                        source: @image-url("../icons/trash.svg");
-                        image-rendering: smooth;
-                        colorize: Theme.danger;
+                    if root.state == ClipState.waiting : RowActionButton {
+                        compress-button := RowActionButton {
+                            icon: @image-url("../icons/compress.svg");
+                            tint: Theme.accent;
+                            action-label: "Compress " + root.file-name;
+                            tooltip: "Compress this video";
+                            activated => { root.compress-requested(); }
+                        }
                     }
-                    delete-button-touch := ClickFocusArea {
-                        mouse-cursor: pointer;
-                        accessible-role: button;
-                        accessible-label: "Delete " + root.file-name;
-                        accessible-action-default => { root.delete-requested(); }
-                        clicked => { root.delete-requested(); }
+                    if root.state == ClipState.compressing : RowActionButton {
+                        cancel-button := RowActionButton {
+                            icon: @image-url("../icons/close.svg");
+                            tint: Theme.text-dim;
+                            action-label: "Cancel " + root.file-name;
+                            tooltip: "Cancel compression";
+                            activated => { root.cancel-requested(); }
+                        }
+                    }
+                    if root.state == ClipState.finished : RowActionButton {
+                        copy-button := RowActionButton {
+                            icon: @image-url("../icons/copy.svg");
+                            tint: Theme.success;
+                            action-label: "Copy " + root.file-name;
+                            tooltip: "Copy the compressed file path";
+                            activated => { root.copy-requested(); }
+                        }
+                    }
+                    delete-button := RowActionButton {
+                        icon: @image-url("../icons/trash.svg");
+                        tint: Theme.danger;
+                        action-label: "Delete " + root.file-name;
+                        tooltip: "Remove from the list";
+                        activated => { root.delete-requested(); }
                     }
                 }
             }

@@ -1,5 +1,5 @@
 import { Theme } from "../theme.slint";
-import { AudioTrack, ClipData, EncodingOptions, EncodingConflicts, EncodingField, SelectionRequest, SelectionOperation } from "../clip-model.slint";
+import { AudioTrack, ClipData, ClipState, EncodingOptions, EncodingConflicts, EncodingField, EncodingPresets, SelectionRequest, SelectionOperation } from "../clip-model.slint";
 import { SelectableClip } from "selectable-clip.slint";
 import { ScrollRail } from "scroll-rail.slint";
 import { ScrollView } from "std-widgets.slint";
@@ -16,14 +16,17 @@ export component VideoList inherits Rectangle {
         || root.option-conflicts.frame-rate || root.option-conflicts.custom-frame-rate
         || root.option-conflicts.resolution || root.option-conflicts.custom-width || root.option-conflicts.custom-height;
     callback selection-changed(EncodingOptions);
+    callback copy-requested(string);
 
     property <bool> marquee-active;
-    property <int> anchor: -1;
+    property <length> rows-inset: 14px;
+    property <bool> has-anchor;
+    property <int> anchor;
     property <SelectionRequest> request;
     property <int> request-revision;
     property <int> reported-count;
     property <int> pending-selected-count;
-    property <int> first-selected: -1;
+    property <int> first-selected;
     property <EncodingConflicts> pending-conflicts;
     property <EncodingOptions> pending-options;
     property <[AudioTrack]> pending-audio-tracks;
@@ -45,7 +48,6 @@ export component VideoList inherits Rectangle {
         root.reported-count = 0;
         root.pending-selected-count = 0;
         root.pending-audio-tracks = [];
-        root.first-selected = -1;
         root.pending-conflicts = {
             codec: false, size: false, custom-size: false, resolution: false,
             frame-rate: false, custom-frame-rate: false,
@@ -64,7 +66,7 @@ export component VideoList inherits Rectangle {
         if selected {
             if root.pending-selected-count > 0 { root.pending-conflicts = root.conflicts-with(options); }
             if audio-tracks.length > root.pending-audio-tracks.length { root.pending-audio-tracks = audio-tracks; }
-            if root.first-selected < 0 || index < root.first-selected {
+            if root.pending-selected-count == 0 || index < root.first-selected {
                 root.first-selected = index;
                 root.pending-options = options;
             }
@@ -80,21 +82,21 @@ export component VideoList inherits Rectangle {
         }
     }
 
-    function begin-selection(index: int, position: Point, modifiers: KeyboardModifiers) {
+    function begin-selection(index: int, has-target: bool, position: Point, modifiers: KeyboardModifiers) {
         list-focus.focus();
         root.selecting = true;
         root.marquee-active = false;
         root.request.gesture += 1;
         root.request.operation = SelectionOperation.click;
+        root.request.has-target = has-target;
         root.request.index = index;
-        root.request.anchor = root.anchor < 0 ? index : root.anchor;
+        root.request.anchor = root.has-anchor ? root.anchor : index;
         root.request.control = modifiers.control;
         root.request.shift = modifiers.shift;
         root.request.origin = position;
         root.request.position = position;
-        if index >= 0 && !modifiers.shift { root.anchor = index; }
-        if index >= 0 && root.anchor < 0 { root.anchor = index; }
-        if index < 0 && !modifiers.control && !modifiers.shift { root.anchor = -1; }
+        if has-target && (!modifiers.shift || !root.has-anchor) { root.has-anchor = true; root.anchor = index; }
+        if !has-target && !modifiers.control && !modifiers.shift { root.has-anchor = false; }
         root.dispatch();
     }
 
@@ -120,18 +122,30 @@ export component VideoList inherits Rectangle {
     }
 
     public function clear-selection() {
-        root.anchor = -1;
+        root.has-anchor = false;
         root.request.operation = SelectionOperation.clear;
         root.dispatch();
     }
 
     public function delete-clip(index: int) {
         if index < 0 || index >= root.clips.length { return; }
-        if root.anchor == index { root.anchor = -1; }
-        if root.anchor > index { root.anchor -= 1; }
+        if root.has-anchor && root.anchor == index { root.has-anchor = false; }
+        if root.has-anchor && root.anchor > index { root.anchor -= 1; }
         root.clips.remove(index);
         // NOTE: deferring lets the repeated rows rebind before they report, otherwise the deleted row's stale report corrupts the aggregate.
         refresh-timer.start();
+    }
+
+    public function compress-clip(index: int) {
+        if index < 0 || index >= root.clips.length { return; }
+        root.clips[index].state = ClipState.compressing;
+        root.clips[index].progress = 0;
+    }
+
+    public function cancel-clip(index: int) {
+        if index < 0 || index >= root.clips.length { return; }
+        root.clips[index].state = ClipState.waiting;
+        root.clips[index].progress = 0;
     }
 
     public function edit-options(field: EncodingField, options: EncodingOptions) {
@@ -175,7 +189,7 @@ export component VideoList inherits Rectangle {
         vertical-scrollbar-policy: always-off;
         mouse-drag-pan-enabled: false;
         content-width: self.visible-width;
-        content-height: Math.max(self.visible-height, list-rows.min-height + 28px);
+        content-height: Math.max(self.visible-height, list-rows.min-height + 2 * root.rows-inset);
 
         list-surface := Rectangle {
             width: list-scroll.visible-width;
@@ -184,7 +198,7 @@ export component VideoList inherits Rectangle {
             selection-touch := TouchArea {
                 pointer-event(event) => {
                     if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
-                        root.begin-selection(-1, { x: self.mouse-x, y: self.mouse-y }, event.modifiers);
+                        root.begin-selection(0, false, { x: self.mouse-x, y: self.mouse-y }, event.modifiers);
                     }
                     if event.kind == PointerEventKind.up && event.button == PointerEventButton.left { root.finish-selection(); }
                     if event.kind == PointerEventKind.cancel { root.cancel-selection(); }
@@ -194,7 +208,7 @@ export component VideoList inherits Rectangle {
 
             list-rows := VerticalLayout {
                 x: Theme.video-list-inset;
-                y: 14px;
+                y: root.rows-inset;
                 width: list-surface.width - 2 * Theme.video-list-inset;
                 height: self.min-height;
                 spacing: 8px;
@@ -212,17 +226,13 @@ export component VideoList inherits Rectangle {
                     options: clip.options;
                     audio-tracks: clip.audio-tracks;
                     audio-revision: root.selection-revision;
-                    audio-track-count: clip.audio-tracks.length;
                     request: root.request;
                     request-revision: root.request-revision;
-                    encoding-codec: clip.options.codec == 0 ? "H.264" : "AV1";
-                    encoding-frame-rate: clip.options.frame-rate == 3 ? clip.options.custom-frame-rate
-                        : ["60", "30", "15"][clip.options.frame-rate];
-                    encoding-resolution: clip.options.resolution == 3 ? clip.options.custom-width + " × " + clip.options.custom-height
-                        : ["480p", "720p", "1080p"][clip.options.resolution];
-                    encoding-size: clip.options.size == 3 ? clip.options.custom-size + " MB"
-                        : ["20 MB", "25 MB", "64 MB"][clip.options.size];
-                    pointer-pressed(index, position, modifiers) => { root.begin-selection(index, position, modifiers); }
+                    encoding-codec: EncodingPresets.codec-format(clip.options);
+                    encoding-frame-rate: EncodingPresets.frame-rate-format(clip.options);
+                    encoding-resolution: EncodingPresets.resolution-format(clip.options);
+                    encoding-size: EncodingPresets.size-format(clip.options);
+                    pointer-pressed(index, position, modifiers) => { root.begin-selection(index, true, position, modifiers); }
                     pointer-moved(position) => { root.move-selection(position); }
                     pointer-released => { root.finish-selection(); }
                     pointer-cancelled => { root.cancel-selection(); }
@@ -236,6 +246,9 @@ export component VideoList inherits Rectangle {
                         clip.audio-tracks[index] = { name: track.name, info: track.info, enabled: enabled };
                     }
                     delete-requested => { root.delete-clip(index); }
+                    compress-requested => { root.compress-clip(index); }
+                    cancel-requested => { root.cancel-clip(index); }
+                    copy-requested => { root.copy-requested(clip.output-path); }
                 }
             }
 

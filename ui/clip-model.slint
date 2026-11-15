@@ -37,6 +37,48 @@ export struct EncodingConflicts {
     custom-height: bool,
 }
 
+export global EncodingPresets {
+    out property <[string]> codec-labels: ["Compatibility (H.264)", "Quality (AV1)"];
+    out property <[string]> frame-rate-labels: ["60", "30", "15", "Custom"];
+    out property <[string]> size-labels: ["20 MB", "25 MB", "64 MB", "Custom"];
+    out property <[string]> resolution-labels: ["480p", "720p", "1080p", "Custom"];
+    out property <EncodingOptions> defaults: {
+        codec: 0, frame-rate: 0, custom-frame-rate: "60", size: 0, custom-size: "8",
+        resolution: 1, custom-width: "1920", custom-height: "1080",
+    };
+
+    public pure function is-custom-frame-rate(option: int) -> bool {
+        return option == 3;
+    }
+
+    public pure function is-custom-size(option: int) -> bool {
+        return option == 3;
+    }
+
+    public pure function is-custom-resolution(option: int) -> bool {
+        return option == 3;
+    }
+
+    public pure function codec-format(options: EncodingOptions) -> string {
+        return options.codec == 0 ? "H.264" : "AV1";
+    }
+
+    public pure function frame-rate-format(options: EncodingOptions) -> string {
+        return EncodingPresets.is-custom-frame-rate(options.frame-rate) ? options.custom-frame-rate
+            : EncodingPresets.frame-rate-labels[options.frame-rate];
+    }
+
+    public pure function resolution-format(options: EncodingOptions) -> string {
+        return EncodingPresets.is-custom-resolution(options.resolution) ? options.custom-width + " × " + options.custom-height
+            : EncodingPresets.resolution-labels[options.resolution];
+    }
+
+    public pure function size-format(options: EncodingOptions) -> string {
+        return EncodingPresets.is-custom-size(options.size) ? options.custom-size + " MB"
+            : EncodingPresets.size-labels[options.size];
+    }
+}
+
 export struct AudioTrack {
     name: string,
     info: string,
@@ -46,6 +88,7 @@ export struct AudioTrack {
 export struct ClipData {
     file-name: string,
     source-path: string,
+    output-path: string,
     metadata: string,
     state: ClipState,
     progress: float,
@@ -67,6 +110,7 @@ export enum SelectionOperation {
 export struct SelectionRequest {
     operation: SelectionOperation,
     gesture: int,
+    has-target: bool,
     index: int,
     anchor: int,
     control: bool,

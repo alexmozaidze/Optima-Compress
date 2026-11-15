@@ -6,6 +6,7 @@
         {
             "file-name": "All_Audio_Tracks.mp4",
             "source-path": "",
+            "output-path": "",
             "metadata": "All nine tracks enabled",
             "state": "waiting",
             "progress": 0,

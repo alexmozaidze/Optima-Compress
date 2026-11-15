@@ -1,13 +1,17 @@
 import { Theme } from "theme.slint";
-import { ClipData, ClipState, EncodingOptions, EncodingField } from "clip-model.slint";
+import { ClipData, ClipState, EncodingOptions, EncodingField, EncodingPresets } from "clip-model.slint";
 import { DropTarget } from "components/drop-target.slint";
 import { VideoList } from "components/video-list.slint";
 import { SelectionSettings } from "components/selection-settings.slint";
 import { ClickFocusArea } from "components/primitives.slint";
 
 export component AppWindow inherits Window {
+    // NOTE: the host decodes drops and appends unselected clips with default-options.
     callback files-dropped(data-transfer);
+    // NOTE: the host reads selected items' source-path, options and enabled audio tracks from clips.
     callback compress-requested;
+    // NOTE: the host puts a finished clip's output path on the system clipboard.
+    callback copy-requested(string);
 
     title: "QuickClip Compress";
     background: Theme.window-bg;
@@ -27,29 +31,26 @@ export component AppWindow inherits Window {
 
     out property <int> selected-count: video-list.selected-count;
     out property <bool> mixed-options: video-list.mixed-options || settings-menu.mixed-audio;
-    in-out property <int> codec: 0;
-    in-out property <int> frame-rate: 0;
-    in-out property <string> custom-frame-rate: "60";
-    in-out property <int> size: 0;
-    in-out property <string> custom-size: "8";
-    in-out property <int> resolution: 1;
-    in-out property <string> custom-width: "1920";
-    in-out property <string> custom-height: "1080";
+    in-out property <int> codec: EncodingPresets.defaults.codec;
+    in-out property <int> frame-rate: EncodingPresets.defaults.frame-rate;
+    in-out property <string> custom-frame-rate: EncodingPresets.defaults.custom-frame-rate;
+    in-out property <int> size: EncodingPresets.defaults.size;
+    in-out property <string> custom-size: EncodingPresets.defaults.custom-size;
+    in-out property <int> resolution: EncodingPresets.defaults.resolution;
+    in-out property <string> custom-width: EncodingPresets.defaults.custom-width;
+    in-out property <string> custom-height: EncodingPresets.defaults.custom-height;
 
-    out property <EncodingOptions> default-options: {
-        codec: 0, size: 0, custom-size: "8", resolution: 1,
-        frame-rate: 0, custom-frame-rate: "60",
-        custom-width: "1920", custom-height: "1080",
-    };
+    out property <EncodingOptions> default-options: EncodingPresets.defaults;
 
+    // NOTE: the host supplies paths, display metadata and source-ordered audio. Selection, options and audio flags remain UI-owned.
     in-out property <[ClipData]> clips: [
         {
-            file-name: "ShadowPlay_Clip_01.mp4", source-path: "",
+            file-name: "ShadowPlay_Clip_01.mp4", source-path: "", output-path: "",
             metadata: "2:45 · 1080p · 142 MB", state: ClipState.waiting,
             progress: 0, selected: false, audio-tracks: [], options: root.default-options,
         },
         {
-            file-name: "Ranked_Highlights.mp4", source-path: "",
+            file-name: "Ranked_Highlights.mp4", source-path: "", output-path: "",
             metadata: "1:12 · 1080p · 86 MB", state: ClipState.compressing,
             progress: 0.58, selected: false, options: root.default-options,
             audio-tracks: [
@@ -65,7 +66,7 @@ export component AppWindow inherits Window {
             ],
         },
         {
-            file-name: "Friend_Clip.mp4", source-path: "",
+            file-name: "Friend_Clip.mp4", source-path: "", output-path: "/home/alex/Videos/Compressed/Friend_Clip.mp4",
             metadata: "0:30 · 720p · 18 MB", state: ClipState.finished,
             progress: 1, selected: false, options: root.default-options,
             audio-tracks: [
@@ -112,7 +113,7 @@ export component AppWindow inherits Window {
                 clear-label := Text {
                     text: "Clear";
                     color: Theme.text;
-                    font-size: 0.92rem;
+                    font-size: Theme.font-size-small;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
@@ -132,7 +133,7 @@ export component AppWindow inherits Window {
                 compress-label := Text {
                     text: "Compress";
                     color: Theme.text-on-accent;
-                    font-size: 0.92rem;
+                    font-size: Theme.font-size-small;
                     font-weight: 600;
                     horizontal-alignment: center;
                     vertical-alignment: center;
@@ -157,6 +158,7 @@ export component AppWindow inherits Window {
         height: settings-panel.y - self.y;
         clips <=> root.clips;
         phone: root.phone;
+        copy-requested(path) => { root.copy-requested(path); }
         selection-changed(options) => {
             if root.selected-count == 0 { return; }
             root.codec = options.codec;

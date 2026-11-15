@@ -3,6 +3,7 @@
         {
             "file-name": "OBS_Recording.mp4",
             "source-path": "",
+            "output-path": "",
             "metadata": "Audio name fixture",
             "state": "waiting",
             "progress": 0,
@@ -21,6 +22,7 @@
         {
             "file-name": "Friend_Clip.mp4",
             "source-path": "",
+            "output-path": "",
             "metadata": "Audio name fixture",
             "state": "waiting",
             "progress": 0,
@@ -39,6 +41,7 @@
         {
             "file-name": "Phone_Clip.mp4",
             "source-path": "",
+            "output-path": "",
             "metadata": "Audio name fixture",
             "state": "waiting",
             "progress": 0,

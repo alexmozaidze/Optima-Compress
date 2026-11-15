@@ -3,6 +3,7 @@
         {
             "file-name": "Silent.mp4",
             "source-path": "",
+            "output-path": "",
             "metadata": "Audio scrolling fixture",
             "state": "waiting",
             "progress": 0,
@@ -16,6 +17,7 @@
         {
             "file-name": "Many_Tracks.mp4",
             "source-path": "",
+            "output-path": "",
             "metadata": "Audio scrolling fixture",
             "state": "waiting",
             "progress": 0,
@@ -39,6 +41,7 @@
         {
             "file-name": "Single_Track.mp4",
             "source-path": "",
+            "output-path": "",
             "metadata": "Audio scrolling fixture",
             "state": "waiting",
             "progress": 0,
