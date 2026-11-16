@@ -2,8 +2,8 @@
 
 A Slint desktop app for compressing gameplay clips to the size limits of the places they get
 shared to. The UI is currently the whole product: `ui/app-window.slint` composes the interface
-from shared theme and component modules. The Rust host imports files dropped on the window and
-puts a finished clip's output path on the system clipboard.
+from shared theme and component modules. The Rust host imports dropped or picked files and puts a
+finished clip's output path on the system clipboard.
 
 ## Setup
 

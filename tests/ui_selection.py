@@ -440,6 +440,16 @@ class SelectionTests(AppWindowTests):
         self.assertNotIn("Cancel Friend_Clip.mp4", labels)
         self.assertIn("Waiting for compression", self.labels(self.rows[0]))
 
+    def test_toolbar_offers_add_videos(self):
+        toolbar = self.find("AppWindow::selection-toolbar")
+        elements = self.call("get_element_tree", elementHandle=toolbar, maxElements=200)["elements"]
+        add = next(
+            entry for entry in elements
+            if entry.get("accessibleLabel") == "Add videos" and entry.get("accessibleRole") == "Button"
+        )
+        self.assertTrue(add.get("accessibleEnabled", True))
+        self.assertIn("3 videos", self.labels(toolbar))
+
     def test_selection_toolbar_sits_above_the_videos_not_in_the_settings(self):
         self.click(self.rows[1])
         toolbar = self.find("AppWindow::selection-toolbar")

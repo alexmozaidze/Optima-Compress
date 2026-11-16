@@ -46,14 +46,12 @@ fn clip_from_path(path: &Path, options: &EncodingOptions) -> ClipData {
     }
 }
 
+fn existing_files(paths: impl IntoIterator<Item = PathBuf>) -> Vec<PathBuf> {
+    paths.into_iter().filter(|path| path.is_file()).collect()
+}
+
 fn imported_files(transfer: &DataTransfer) -> Vec<PathBuf> {
-    transfer
-        .file_paths()
-        .into_iter()
-        .flatten()
-        .filter(|path| path.is_file())
-        .map(Path::to_path_buf)
-        .collect()
+    existing_files(transfer.file_paths().into_iter().flatten().map(Path::to_path_buf))
 }
 
 fn append_clips(ui: &AppWindow, files: &[PathBuf]) {
@@ -156,9 +154,74 @@ fn connect_import(ui: &AppWindow) {
     });
 }
 
+fn connect_picker(ui: &AppWindow) {
+    const VIDEO_EXTENSIONS: [&str; 6] = ["mp4", "mkv", "mov", "avi", "webm", "m4v"];
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let pending: Rc<RefCell<Option<mpsc::Receiver<Vec<PathBuf>>>>> = Rc::new(RefCell::new(None));
+        let timer = Rc::new(slint::Timer::default());
+        let click_handle = ui.as_weak();
+        let click_pending = pending.clone();
+        let click_timer = timer.clone();
+        ui.on_add_videos_requested(move || {
+            if click_pending.borrow().is_some() {
+                return;
+            }
+            // NOTE: the portal dialog lives in another process, so a worker thread can block on it.
+            let (sender, receiver) = mpsc::channel();
+            *click_pending.borrow_mut() = Some(receiver);
+            std::thread::spawn(move || {
+                let files = rfd::FileDialog::new()
+                    .add_filter("Videos", &VIDEO_EXTENSIONS)
+                    .pick_files()
+                    .unwrap_or_default();
+                let _ = sender.send(files);
+            });
+
+            let poll_handle = click_handle.clone();
+            let poll_pending = click_pending.clone();
+            let poll_timer = click_timer.clone();
+            click_timer.start(slint::TimerMode::Repeated, Duration::from_millis(100), move || {
+                let received = poll_pending
+                    .borrow_mut()
+                    .as_ref()
+                    .and_then(|receiver| receiver.try_recv().ok());
+                let Some(files) = received else { return; };
+                *poll_pending.borrow_mut() = None;
+                poll_timer.stop();
+                if let Some(ui) = poll_handle.upgrade() {
+                    append_clips(&ui, &existing_files(files));
+                }
+            });
+        });
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        // NOTE: the native dialogs on Windows and macOS must run on the main thread.
+        let handle = ui.as_weak();
+        ui.on_add_videos_requested(move || {
+            let files = rfd::FileDialog::new()
+                .add_filter("Videos", &VIDEO_EXTENSIONS)
+                .pick_files()
+                .unwrap_or_default();
+            if let Some(ui) = handle.upgrade() {
+                append_clips(&ui, &existing_files(files));
+            }
+        });
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let ui = AppWindow::new()?;
     connect_import(&ui);
+    connect_picker(&ui);
 
     #[cfg(feature = "demo-clips")]
     demo_clips::seed(&ui);
@@ -183,7 +246,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     });
 
-    ui.run()?;
+    let result = ui.run();
+
+    // NOTE: the worker must be joined while the window's surface is still alive; the thread-local
+    // would otherwise only be dropped after `ui`.
+    #[cfg(target_os = "linux")]
+    WAYLAND_DROP.with_borrow_mut(|state| state.take());
+
+    result?;
     Ok(())
 }
 

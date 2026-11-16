@@ -12,6 +12,8 @@ export component AppWindow inherits Window {
     callback compress-requested;
     // NOTE: the host puts a finished clip's output path on the system clipboard.
     callback copy-requested(string);
+    // NOTE: the host opens the system file chooser and appends the picked videos.
+    callback add-videos-requested;
     // NOTE: the winit backend never fires the DropArea, so the host tracks the drag itself.
     in-out property <bool> file-drag-active: false;
 
@@ -73,6 +75,27 @@ export component AppWindow inherits Window {
                 font-weight: 600;
                 vertical-alignment: center;
                 overflow: elide;
+            }
+            Rectangle {
+                width: add-label.preferred-width + 12px;
+                height: Math.max(28px, add-label.preferred-height + 8px);
+                background: add-touch.has-hover ? Theme.card-bg : transparent;
+                border-radius: Theme.radius-control;
+
+                add-label := Text {
+                    text: "Add videos";
+                    color: Theme.text;
+                    font-size: Theme.font-size-small;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                add-touch := ClickFocusArea {
+                    mouse-cursor: pointer;
+                    accessible-role: button;
+                    accessible-label: "Add videos";
+                    accessible-action-default => { root.add-videos-requested(); }
+                    clicked => { root.add-videos-requested(); }
+                }
             }
             Rectangle {
                 width: clear-label.preferred-width + 12px;

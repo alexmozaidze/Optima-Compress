@@ -33,6 +33,12 @@ arboard = { version = "3.7", default-features = false, features = ["wayland-data
 # NOTE: winit 0.30 has no Wayland file-drop backend, so this speaks wl_data_device on the window's
 # own connection. It returns None on X11, where winit's own drop events already work.
 limn-dnd = "0.1"
+# The file chooser goes through the XDG desktop portal; ashpd/zbus are hidden behind this feature.
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+# Windows and macOS use their native file chooser.
+rfd = "0.15"
 
 [build-dependencies]
 slint-build = "1.18.1"
