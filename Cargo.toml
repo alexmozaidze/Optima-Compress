@@ -28,6 +28,8 @@ slint = { version = "1.18.1", default-features = false, features = [
 # Text-only clipboard for the per-row Copy action. The default features pull image support the
 # app never uses; wayland-data-control covers the compositor the app runs under.
 arboard = { version = "3.7", default-features = false, features = ["wayland-data-control"] }
+gstreamer = "0.25"
+gstreamer-pbutils = "0.25"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # NOTE: winit 0.30 has no Wayland file-drop backend, so this speaks wl_data_device on the window's
@@ -43,8 +45,11 @@ rfd = "0.15"
 [build-dependencies]
 slint-build = "1.18.1"
 
+[dev-dependencies]
+i-slint-backend-testing = "=1.18.1"
+
 [features]
-# Test-only: builds tests/fixtures/demo-window.slint instead, so the regressions have seeded clips.
+# Test-only: seeds clips in the Rust host for the UI regressions.
 demo-clips = []
 
 [profile.dev]

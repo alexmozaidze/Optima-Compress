@@ -2,6 +2,7 @@ import { Theme } from "../theme.slint";
 import { AudioTrack, ClipData, ClipState, EncodingOptions, EncodingConflicts, EncodingField, EncodingPresets, SelectionRequest, SelectionOperation } from "../clip-model.slint";
 import { SelectableClip } from "selectable-clip.slint";
 import { ScrollRail } from "scroll-rail.slint";
+import { ClickFocusArea } from "primitives.slint";
 import { ScrollView } from "std-widgets.slint";
 
 export component VideoList inherits Rectangle {
@@ -17,6 +18,7 @@ export component VideoList inherits Rectangle {
         || root.option-conflicts.resolution || root.option-conflicts.custom-width || root.option-conflicts.custom-height;
     callback selection-changed(EncodingOptions);
     callback copy-requested(string);
+    callback add-videos-requested;
 
     property <bool> marquee-active;
     property <length> rows-inset: 14px;
@@ -249,6 +251,48 @@ export component VideoList inherits Rectangle {
                     compress-requested => { root.compress-clip(index); }
                     cancel-requested => { root.cancel-clip(index); }
                     copy-requested => { root.copy-requested(clip.output-path); }
+                }
+
+                add-videos-entry := Rectangle {
+                    height: Math.max(9.5rem, add-videos-copy.min-height + 20px);
+                    border-radius: 7.7px;
+                    border-width: 1px;
+                    border-color: add-videos-touch.has-hover ? Theme.accent : Theme.outline;
+                    background: add-videos-touch.has-hover ? Theme.card-bg : transparent;
+                    accessible-role: button;
+                    accessible-label: "Add videos";
+                    accessible-action-default => { root.add-videos-requested(); }
+
+                    add-videos-copy := VerticalLayout {
+                        padding: 10px;
+                        alignment: center;
+                        spacing: 6px;
+
+                        Text {
+                            text: "+";
+                            color: Theme.accent;
+                            font-size: 2rem;
+                            horizontal-alignment: center;
+                        }
+                        Text {
+                            text: "Add videos";
+                            color: Theme.text;
+                            font-size: 1.23rem;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                        }
+                        Text {
+                            text: "Choose files or drag and drop them here";
+                            color: Theme.text-dim;
+                            font-size: Theme.font-size-small;
+                            horizontal-alignment: center;
+                            wrap: word-wrap;
+                        }
+                    }
+                    add-videos-touch := ClickFocusArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.add-videos-requested(); }
+                    }
                 }
             }
 

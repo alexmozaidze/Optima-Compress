@@ -1,0 +1,7 @@
+{
+    "fixture-clips": [],
+    "viewport-width": 320,
+    "viewport-height": 762,
+    "text-size": 14,
+    "fixture-import-message": "not-a-video.mp4: No video stream.\naudio.wav: No video stream.\nstill.png: Still images are not videos.\nmissing.mkv: Cannot read this file.\nunsupported.mkv: A required GStreamer plugin is missing.\nslow.mkv: Checking this file timed out."
+}

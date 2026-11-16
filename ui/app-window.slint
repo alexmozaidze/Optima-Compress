@@ -4,6 +4,7 @@ import { DropTarget } from "components/drop-target.slint";
 import { VideoList } from "components/video-list.slint";
 import { SelectionSettings } from "components/selection-settings.slint";
 import { ClickFocusArea } from "components/primitives.slint";
+import { ImportFeedback } from "components/import-feedback.slint";
 
 export component AppWindow inherits Window {
     // NOTE: the host decodes drops and appends unselected clips with default-options.
@@ -16,6 +17,8 @@ export component AppWindow inherits Window {
     callback add-videos-requested;
     // NOTE: the winit backend never fires the DropArea, so the host tracks the drag itself.
     in-out property <bool> file-drag-active: false;
+    in-out property <bool> importing: false;
+    in-out property <string> import-message;
 
     title: "QuickClip Compress";
     background: Theme.window-bg;
@@ -145,14 +148,24 @@ export component AppWindow inherits Window {
         }
     }
 
-    video-list := VideoList {
+    import-feedback := ImportFeedback {
         x: 0px;
         y: selection-toolbar.y + selection-toolbar.height;
+        width: root.width;
+        height-limit: Math.max(0px, Math.min(root.height * 0.2, (settings-panel.y - self.y) / 2));
+        message <=> root.import-message;
+        busy: root.importing;
+    }
+
+    video-list := VideoList {
+        x: 0px;
+        y: import-feedback.y + import-feedback.height;
         width: root.width;
         height: settings-panel.y - self.y;
         clips <=> root.clips;
         phone: root.phone;
         copy-requested(path) => { root.copy-requested(path); }
+        add-videos-requested => { root.add-videos-requested(); }
         selection-changed(options) => {
             if root.selected-count == 0 { return; }
             root.codec = options.codec;
@@ -204,54 +217,6 @@ export component AppWindow inherits Window {
             }
         }
 
-    }
-
-    empty-state := Rectangle {
-        x: video-list.x;
-        y: video-list.y;
-        width: video-list.width;
-        height: video-list.height;
-        visible: root.clips.length == 0;
-        background: Theme.window-bg;
-
-        VerticalLayout {
-            padding-left: 24px;
-            padding-right: 24px;
-            alignment: center;
-
-            HorizontalLayout {
-                alignment: center;
-                vertical-stretch: 0;
-
-                empty-message := Rectangle {
-                    width: Math.max(0px, Math.min(empty-state.width - 48px, 480px));
-                    height: empty-copy.min-height;
-
-                    empty-copy := VerticalLayout {
-                        width: parent.width;
-                        height: self.min-height;
-                        spacing: 10px;
-
-                        empty-title := Text {
-                            height: self.preferred-height;
-                            text: "No videos selected";
-                            color: Theme.text;
-                            font-size: 1.54rem;
-                            font-weight: 600;
-                            horizontal-alignment: center;
-                        }
-                        empty-instructions := Text {
-                            height: self.preferred-height;
-                            text: "Drag and drop videos here, then select one to adjust compression settings.\nCtrl-click to select multiple videos.";
-                            color: Theme.text-dim;
-                            font-size: 1rem;
-                            horizontal-alignment: center;
-                            wrap: word-wrap;
-                        }
-                    }
-                }
-            }
-        }
     }
 
     settings-resize := TouchArea {

@@ -5,9 +5,20 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
-use slint::{DataTransfer, Model, ModelRc, SharedString, VecModel};
+use slint::{DataTransfer, SharedString};
+
+use import::Importer;
 
 slint::include_modules!();
+
+mod media;
+mod import;
+
+#[cfg(test)]
+mod test_support;
+
+#[cfg(test)]
+mod import_tests;
 
 #[cfg(feature = "demo-clips")]
 mod demo_clips;
@@ -25,43 +36,8 @@ fn size_label(bytes: u64) -> SharedString {
     }
 }
 
-fn clip_from_path(path: &Path, options: &EncodingOptions) -> ClipData {
-    let file_name = path
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.display().to_string());
-    let metadata = std::fs::metadata(path)
-        .map(|metadata| size_label(metadata.len()))
-        .unwrap_or_else(|_| SharedString::from("Unknown size"));
-    ClipData {
-        file_name: file_name.into(),
-        source_path: path.to_string_lossy().into_owned().into(),
-        output_path: SharedString::default(),
-        metadata,
-        state: ClipState::Waiting,
-        progress: 0.0,
-        selected: false,
-        audio_tracks: ModelRc::default(),
-        options: options.clone(),
-    }
-}
-
-fn existing_files(paths: impl IntoIterator<Item = PathBuf>) -> Vec<PathBuf> {
-    paths.into_iter().filter(|path| path.is_file()).collect()
-}
-
-fn imported_files(transfer: &DataTransfer) -> Vec<PathBuf> {
-    existing_files(transfer.file_paths().into_iter().flatten().map(Path::to_path_buf))
-}
-
-fn append_clips(ui: &AppWindow, files: &[PathBuf]) {
-    if files.is_empty() {
-        return;
-    }
-    let mut clips: Vec<ClipData> = ui.get_clips().iter().collect();
-    let options = ui.get_default_options();
-    clips.extend(files.iter().map(|file| clip_from_path(file, &options)));
-    ui.set_clips(ModelRc::new(VecModel::from(clips)));
+fn imported_paths(transfer: &DataTransfer) -> Vec<PathBuf> {
+    transfer.file_paths().into_iter().flatten().map(Path::to_path_buf).collect()
 }
 
 #[derive(Debug)]
@@ -73,13 +49,13 @@ enum DropAction {
 
 #[cfg(target_os = "linux")]
 thread_local! {
-    static WAYLAND_DROP: std::cell::RefCell<Option<(limn_dnd::FileDnd, slint::Weak<AppWindow>)>> =
+    static WAYLAND_DROP: std::cell::RefCell<Option<(limn_dnd::FileDnd, slint::Weak<AppWindow>, Importer)>> =
         const { std::cell::RefCell::new(None) };
     static WAYLAND_DROP_TRIED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[cfg(target_os = "linux")]
-fn attach_wayland_drop(window: &slint::Window, ui: &AppWindow) {
+fn attach_wayland_drop(window: &slint::Window, ui: &AppWindow, importer: &Importer) {
     let already_tried = WAYLAND_DROP_TRIED.with(|tried| tried.replace(true));
     if already_tried {
         return;
@@ -90,15 +66,17 @@ fn attach_wayland_drop(window: &slint::Window, ui: &AppWindow) {
         })
     });
     let Some(Some(file_dnd)) = attached else { return; };
-    WAYLAND_DROP.with_borrow_mut(|state| *state = Some((file_dnd, ui.as_weak())));
+    WAYLAND_DROP.with_borrow_mut(|state| *state = Some((file_dnd, ui.as_weak(), importer.clone())));
 }
 
 #[cfg(target_os = "linux")]
 fn poll_wayland_drop() {
     let events = WAYLAND_DROP.with_borrow(|state| {
-        state.as_ref().map(|(file_dnd, _)| file_dnd.poll()).unwrap_or_default()
+        state.as_ref().map(|(file_dnd, _, _)| file_dnd.poll()).unwrap_or_default()
     });
-    let Some(ui) = WAYLAND_DROP.with_borrow(|state| state.as_ref().and_then(|(_, ui)| ui.upgrade()))
+    let Some((ui, importer)) = WAYLAND_DROP.with_borrow(|state| {
+        state.as_ref().and_then(|(_, ui, importer)| ui.upgrade().map(|ui| (ui, importer.clone())))
+    })
     else {
         return;
     };
@@ -108,7 +86,7 @@ fn poll_wayland_drop() {
             limn_dnd::DndEvent::Left | limn_dnd::DndEvent::DragEnded => ui.set_file_drag_active(false),
             limn_dnd::DndEvent::Dropped { paths, .. } => {
                 ui.set_file_drag_active(false);
-                append_clips(&ui, &paths);
+                importer.import_files(paths);
             }
         }
     }
@@ -123,38 +101,38 @@ fn drop_action(event: &winit::event::WindowEvent) -> Option<DropAction> {
     }
 }
 
-fn handle_drop_event(ui: &AppWindow, event: &winit::event::WindowEvent) {
+fn handle_drop_event(ui: &AppWindow, event: &winit::event::WindowEvent, importer: &Importer) {
     match drop_action(event) {
         Some(DropAction::Hover) => ui.set_file_drag_active(true),
         Some(DropAction::Cancel) => ui.set_file_drag_active(false),
         Some(DropAction::Drop(path)) => {
             ui.set_file_drag_active(false);
-            append_clips(ui, std::slice::from_ref(&path));
+            importer.import_files(vec![path]);
         }
         None => {}
     }
 }
 
-fn connect_import(ui: &AppWindow) {
-    let drop_handle = ui.as_weak();
+fn connect_import(ui: &AppWindow, importer: &Importer) {
+    let drop_importer = importer.clone();
     ui.on_files_dropped(move |transfer| {
-        let Some(ui) = drop_handle.upgrade() else { return };
-        append_clips(&ui, &imported_files(&transfer));
+        drop_importer.import_files(imported_paths(&transfer));
     });
 
     // NOTE: the winit backend never feeds DropArea, so file drops arrive as raw window events.
     let event_handle = ui.as_weak();
+    let event_importer = importer.clone();
     ui.window().on_winit_window_event(move |window, event| {
         if let Some(ui) = event_handle.upgrade() {
             #[cfg(target_os = "linux")]
-            attach_wayland_drop(window, &ui);
-            handle_drop_event(&ui, event);
+            attach_wayland_drop(window, &ui, &event_importer);
+            handle_drop_event(&ui, event, &event_importer);
         }
         EventResult::Propagate
     });
 }
 
-fn connect_picker(ui: &AppWindow) {
+fn connect_picker(ui: &AppWindow, importer: &Importer) {
     const VIDEO_EXTENSIONS: [&str; 6] = ["mp4", "mkv", "mov", "avi", "webm", "m4v"];
 
     #[cfg(target_os = "linux")]
@@ -166,7 +144,7 @@ fn connect_picker(ui: &AppWindow) {
 
         let pending: Rc<RefCell<Option<mpsc::Receiver<Vec<PathBuf>>>>> = Rc::new(RefCell::new(None));
         let timer = Rc::new(slint::Timer::default());
-        let click_handle = ui.as_weak();
+        let click_importer = importer.clone();
         let click_pending = pending.clone();
         let click_timer = timer.clone();
         ui.on_add_videos_requested(move || {
@@ -184,7 +162,7 @@ fn connect_picker(ui: &AppWindow) {
                 let _ = sender.send(files);
             });
 
-            let poll_handle = click_handle.clone();
+            let poll_importer = click_importer.clone();
             let poll_pending = click_pending.clone();
             let poll_timer = click_timer.clone();
             click_timer.start(slint::TimerMode::Repeated, Duration::from_millis(100), move || {
@@ -195,9 +173,7 @@ fn connect_picker(ui: &AppWindow) {
                 let Some(files) = received else { return; };
                 *poll_pending.borrow_mut() = None;
                 poll_timer.stop();
-                if let Some(ui) = poll_handle.upgrade() {
-                    append_clips(&ui, &existing_files(files));
-                }
+                poll_importer.import_files(files);
             });
         });
     }
@@ -205,23 +181,22 @@ fn connect_picker(ui: &AppWindow) {
     #[cfg(not(target_os = "linux"))]
     {
         // NOTE: the native dialogs on Windows and macOS must run on the main thread.
-        let handle = ui.as_weak();
+        let picker_importer = importer.clone();
         ui.on_add_videos_requested(move || {
             let files = rfd::FileDialog::new()
                 .add_filter("Videos", &VIDEO_EXTENSIONS)
                 .pick_files()
                 .unwrap_or_default();
-            if let Some(ui) = handle.upgrade() {
-                append_clips(&ui, &existing_files(files));
-            }
+            picker_importer.import_files(files);
         });
     }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let ui = AppWindow::new()?;
-    connect_import(&ui);
-    connect_picker(&ui);
+    let importer = Importer::new(&ui)?;
+    connect_import(&ui, &importer);
+    connect_picker(&ui, &importer);
 
     #[cfg(feature = "demo-clips")]
     demo_clips::seed(&ui);
@@ -276,27 +251,7 @@ mod tests {
     }
 
     #[test]
-    fn clip_from_path_reports_the_file_and_its_size() {
-        let directory = scratch_directory("clip");
-        let file = directory.join("clip.mp4");
-        std::fs::write(&file, vec![0u8; 2048]).expect("write clip");
-
-        let clip = clip_from_path(&file, &EncodingOptions::default());
-
-        assert_eq!(clip.file_name, "clip.mp4");
-        assert_eq!(clip.source_path, file.to_string_lossy().as_ref());
-        assert_eq!(clip.output_path, "");
-        assert_eq!(clip.metadata, "2 KB");
-        assert_eq!(clip.state, ClipState::Waiting);
-        assert_eq!(clip.progress, 0.0);
-        assert!(!clip.selected);
-        assert_eq!(clip.audio_tracks.row_count(), 0);
-
-        std::fs::remove_dir_all(&directory).expect("remove scratch");
-    }
-
-    #[test]
-    fn imported_files_skips_directories_and_missing_paths() {
+    fn imported_paths_preserves_invalid_paths_for_rejection_feedback() {
         let directory = scratch_directory("transfer");
         let file = directory.join("clip.mp4");
         std::fs::write(&file, b"clip").expect("write clip");
@@ -304,14 +259,29 @@ mod tests {
         let mut transfer = DataTransfer::default();
         transfer.set_file_paths([&file, &directory, &directory.join("missing.mp4")]);
 
-        assert_eq!(imported_files(&transfer), vec![file]);
+        assert_eq!(imported_paths(&transfer), vec![file, directory.clone(), directory.join("missing.mp4")]);
 
         std::fs::remove_dir_all(&directory).expect("remove scratch");
     }
 
     #[test]
-    fn imported_files_is_empty_without_file_paths() {
-        assert!(imported_files(&DataTransfer::default()).is_empty());
+    fn imported_files_rejects_non_video_with_a_video_extension() {
+        let directory = scratch_directory("disguised");
+        let file = directory.join("not-a-video.mp4");
+        std::fs::write(&file, b"This is not a video.").expect("write non-video");
+        let mut transfer = DataTransfer::default();
+        transfer.set_file_paths([&file]);
+
+        let batch = media::inspect_files(imported_paths(&transfer)).expect("inspect dropped files");
+        assert!(batch.videos.is_empty(), "A renamed text file must not be imported");
+        assert_eq!(batch.rejected.len(), 1);
+
+        std::fs::remove_dir_all(&directory).expect("remove scratch");
+    }
+
+    #[test]
+    fn imported_paths_is_empty_without_file_paths() {
+        assert!(imported_paths(&DataTransfer::default()).is_empty());
     }
 
     #[test]

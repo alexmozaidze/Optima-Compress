@@ -8,9 +8,11 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import shlex
 import shutil
 import socket
 import subprocess
+import tempfile
 import time
 import unittest
 import urllib.error
@@ -404,7 +406,7 @@ class SelectionTests(AppWindowTests):
             )
             self.press_row_action(delete)
         self.assertEqual(self.visible_file_names(), [])
-        self.assertIn("No videos selected", self.labels())
+        self.assertIn("Add videos", self.labels(self.find("AppWindow::video-list")))
         elements = self.call("get_element_tree", elementHandle=self.root, maxElements=1000)["elements"]
         compress = next(
             entry for entry in elements
@@ -1357,19 +1359,17 @@ class EmptyVideoListTests(ViewerTests):
             self.assertLess(time.monotonic(), deadline, "Viewer did not reach the fixture window size")
             time.sleep(0.02)
 
-    def test_empty_notice_is_centered_in_video_list_not_over_settings(self):
+    def test_empty_list_offers_an_add_entry_without_covering_settings(self):
         videos = self.call("get_element_properties", elementHandle=self.find("AppWindow::video-list"))
-        notice = self.find("AppWindow::empty-state")
-        shown = self.call("get_element_properties", elementHandle=notice)
-        self.assertEqual(shown["absolutePosition"], videos["absolutePosition"])
-        self.assertEqual(shown["size"], videos["size"])
-        self.assertIn("No videos selected", self.labels(notice))
-        self.assertTrue(any(label.startswith("Drag and drop videos") for label in self.labels(notice)))
-        title = self.call("get_element_properties", elementHandle=self.find("AppWindow::empty-title"))
-        instructions = self.call("get_element_properties", elementHandle=self.find("AppWindow::empty-instructions"))
-        self.assertAlmostEqual(self.horizontal_center(title), self.horizontal_center(videos), delta=1)
-        message_center = (title["absolutePosition"]["y"] + instructions["absolutePosition"]["y"] + instructions["size"]["height"]) / 2
-        self.assertAlmostEqual(message_center, videos["absolutePosition"]["y"] + videos["size"]["height"] / 2, delta=1)
+        entry = self.find("VideoList::add-videos-entry")
+        shown = self.call("get_element_properties", elementHandle=entry)
+        self.assertIn("Add videos", self.labels(entry))
+        self.assertAlmostEqual(self.horizontal_center(shown), self.horizontal_center(videos), delta=1)
+        self.assertGreaterEqual(shown["absolutePosition"]["y"], videos["absolutePosition"]["y"])
+        self.assertLessEqual(
+            shown["absolutePosition"]["y"] + shown["size"]["height"],
+            videos["absolutePosition"]["y"] + videos["size"]["height"],
+        )
         panel_labels = self.labels(self.find("AppWindow::settings-panel"))
         self.assertNotIn("No videos selected", panel_labels)
         for label in ["CODEC", "TARGET SIZE", "RESOLUTION", "AUDIO"]:
@@ -1377,6 +1377,143 @@ class EmptyVideoListTests(ViewerTests):
         controls = self.menu_controls()
         self.assertTrue(controls)
         self.assertTrue(all(not control.get("accessibleEnabled", False) for control in controls))
+
+
+class AddVideoEntryWindow(ViewerTests):
+    fixture = ROOT / "tests/fixtures/audio-overflow.json"
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory(prefix="add-video-entry-", dir=Path.home() / "tmp/agents")
+        self.addCleanup(directory.cleanup)
+        self.requests = Path(directory.name) / "chooser-requests"
+        super().setUp()
+
+    def command(self):
+        return [
+            "slint-viewer", "--style", "cosmic-dark", "--auto-reload",
+            "--load-data", str(self.fixture),
+            "--on", "add-videos-requested",
+            f"sh -c {shlex.quote(f'echo requested >> {shlex.quote(str(self.requests))}')}",
+            "ui/app-window.slint",
+        ]
+
+    def assert_entry_opens_chooser(self):
+        self.call("scroll_element", elementHandle=self.find("VideoList::list-scroll"), deltaY=-10000, deltaX=0)
+        entry = self.find("VideoList::add-videos-touch")
+        properties = self.call("get_element_properties", elementHandle=self.find("VideoList::add-videos-entry"))
+        self.assertEqual(properties["accessibleRole"], "Button")
+        self.assertTrue(properties.get("accessibleEnabled", True))
+        before = self.requests.read_text().splitlines() if self.requests.exists() else []
+        self.click(entry)
+        deadline = time.monotonic() + 2
+        while not self.requests.exists() or len(self.requests.read_text().splitlines()) != len(before) + 1:
+            self.assertLess(time.monotonic(), deadline, "The entry did not request the file chooser")
+            time.sleep(0.02)
+
+
+class AddVideoEntryTests(AddVideoEntryWindow):
+    def test_trailing_entry_is_video_sized_and_requests_chooser_without_selecting(self):
+        self.click(self.rows[0])
+        selected = self.selected()
+        row = self.call("get_element_properties", elementHandle=self.rows[0])
+        self.assert_entry_opens_chooser()
+        entry = self.call("get_element_properties", elementHandle=self.find("VideoList::add-videos-entry"))
+        self.assertAlmostEqual(entry["size"]["width"], row["size"]["width"], delta=1)
+        self.assertGreaterEqual(entry["size"]["height"], row["size"]["height"] * 0.8)
+        self.assertLessEqual(entry["size"]["height"], row["size"]["height"] * 1.2)
+        self.assertEqual(self.selected(), selected)
+        self.assert_entry_opens_chooser()
+
+    def test_entry_remains_clickable_after_deleting_every_video(self):
+        for _ in range(self.expected_row_count):
+            self.call("scroll_element", elementHandle=self.find("VideoList::list-scroll"), deltaY=10000, deltaX=0)
+            elements = self.call("get_element_tree", elementHandle=self.root, maxElements=1000)["elements"]
+            delete = next(
+                entry for entry in elements
+                if entry.get("accessibleRole") == "Button" and entry.get("accessibleLabel", "").startswith("Delete ")
+            )
+            self.click(delete["handle"])
+        self.assertIn("0 videos", self.labels(self.find("AppWindow::selection-toolbar")))
+        self.assert_entry_opens_chooser()
+
+
+class EmptyAddVideoEntryTests(AddVideoEntryWindow):
+    fixture = ROOT / "tests/fixtures/empty-video-list.json"
+    expected_row_count = 0
+
+    def test_empty_entry_requests_chooser_and_keeps_settings_disabled(self):
+        self.assert_entry_opens_chooser()
+        entry = self.call("get_element_properties", elementHandle=self.find("VideoList::add-videos-entry"))
+        videos = self.call("get_element_properties", elementHandle=self.find("AppWindow::video-list"))
+        panel = self.call("get_element_properties", elementHandle=self.find("AppWindow::settings-panel"))
+        self.assertGreaterEqual(entry["absolutePosition"]["y"], videos["absolutePosition"]["y"])
+        self.assertLessEqual(
+            entry["absolutePosition"]["y"] + entry["size"]["height"], panel["absolutePosition"]["y"],
+        )
+        self.assertTrue(all(not control.get("accessibleEnabled", False) for control in self.menu_controls()))
+
+
+class ImportFeedbackTests(ViewerTests):
+    fixture = ROOT / "tests/fixtures/import-feedback.json"
+    expected_row_count = 0
+
+    def test_rejections_are_visible_and_dismiss_without_changing_the_list(self):
+        feedback = self.find("AppWindow::import-feedback")
+        labels = self.labels(feedback)
+        self.assertIn(
+            "not-a-video.mp4: Not a video.\naudio.wav: No video stream.\nstill.png: Still images are not videos.",
+            labels,
+        )
+        videos = self.find("AppWindow::video-list")
+        before = self.call("get_element_properties", elementHandle=videos)
+        self.click(self.find("ImportFeedback::dismiss-touch"))
+        self.assertNotIn("not-a-video.mp4: Not a video.", "\n".join(self.labels()))
+        after = self.call("get_element_properties", elementHandle=videos)
+        self.assertLess(after["absolutePosition"]["y"], before["absolutePosition"]["y"])
+        self.assertIn("0 videos", self.labels(self.find("AppWindow::selection-toolbar")))
+        self.assertIn("Add videos", self.labels(videos))
+
+
+class ImportBusyTests(ViewerTests):
+    fixture = ROOT / "tests/fixtures/import-busy.json"
+    expected_row_count = 0
+
+    def test_discovery_status_does_not_offer_to_dismiss_an_active_import(self):
+        labels = self.labels(self.find("AppWindow::import-feedback"))
+        self.assertIn("Checking videos…", labels)
+        self.assertNotIn("Dismiss import errors", labels)
+        self.assertIn("0 videos", self.labels(self.find("AppWindow::selection-toolbar")))
+
+
+class ImportFeedbackNarrowTests(ViewerTests):
+    fixture = ROOT / "tests/fixtures/import-feedback-narrow.json"
+    expected_row_count = 0
+
+    def command(self):
+        return [
+            "slint-viewer", "--auto-reload", "--load-data", str(self.fixture),
+            "tests/fixtures/footer-window.slint",
+        ]
+
+    def test_all_rejection_reasons_are_scrollable_without_moving_dismiss(self):
+        scroll = self.find("ImportFeedback::feedback-scroll")
+        label = self.find("ImportFeedback::feedback-label")
+        dismiss = self.find("ImportFeedback::dismiss-touch")
+        viewport = self.call("get_element_properties", elementHandle=scroll)
+        before = self.call("get_element_properties", elementHandle=label)
+        dismiss_before = self.call("get_element_properties", elementHandle=dismiss)
+        self.assertGreater(before["size"]["height"], viewport["size"]["height"])
+        self.call("scroll_element", elementHandle=scroll, deltaY=-10000, deltaX=0)
+        after = self.call("get_element_properties", elementHandle=label)
+        self.assertLess(after["absolutePosition"]["y"], before["absolutePosition"]["y"])
+        self.assertAlmostEqual(
+            after["absolutePosition"]["y"] + after["size"]["height"],
+            viewport["absolutePosition"]["y"] + viewport["size"]["height"], delta=1,
+        )
+        dismiss_after = self.call("get_element_properties", elementHandle=dismiss)
+        self.assertEqual(dismiss_after["absolutePosition"], dismiss_before["absolutePosition"])
+        self.click(dismiss)
+        self.assertNotIn("No video stream.", "\n".join(self.labels()))
 
 
 class AudioNameMismatchTests(ViewerTests):

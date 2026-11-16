@@ -11,7 +11,8 @@ Keep UI behavior and backend logic separate at all times. UI state, selection, o
 and interaction handling belong in `.slint` files and must work in the standalone viewer
 without Rust callback handlers.
 
-Rust hosts the window and executes backend processing only when the user requests compression.
+Rust hosts the window, imports and probes files, handles native I/O, and performs compression
+only when requested. Media operations use library APIs, never spawned CLI commands.
 Exchange inputs and results through explicit data and callback interfaces. Backend code must
 not own UI state, and UI components must not perform encoding work.
 

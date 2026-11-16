@@ -2,14 +2,18 @@
 
 A Slint desktop app for compressing gameplay clips to the size limits of the places they get
 shared to. The UI is currently the whole product: `ui/app-window.slint` composes the interface
-from shared theme and component modules. The Rust host imports dropped or picked files and puts a
-finished clip's output path on the system clipboard.
+from shared theme and component modules. The Rust host validates and imports dropped or picked files
+and puts a finished clip's output path on the system clipboard.
 
 ## Setup
 
 Rust toolchain, plus the Slint CLI tools on `PATH`: `slint-viewer` (compile check, headless
 render) and `slint-lsp` (editor support). Take both from the Slint release matching the version
 pinned in `Cargo.toml`.
+
+Building also requires the GStreamer development libraries for `gstreamer-1.0` and
+`gstreamer-pbutils-1.0`, discoverable through `pkg-config`. Runtime plugins must cover the
+containers and codecs being imported; missing plugins are reported as import errors.
 
 `slint-viewer` renders with Skia, so the app enables `renderer-skia` too: with FemtoVG the same
 markup looks softer beside the viewer. The app is winit-only and Slint's renderer order is Skia,
@@ -24,8 +28,12 @@ fails on `.slint` errors as well as Rust ones, and `cargo run` opens the window.
 
 Prototype interactions must work in `slint-viewer --style cosmic-dark --auto-reload ui/app-window.slint`, which
 does not run Rust callback handlers. A passing compiled-app check alone does not verify this
-workflow. The one exception is a finished clip's Copy action, which writes the clipboard from the
-Rust host and therefore needs the compiled app to verify.
+workflow. File choosing, import validation, and a finished clip's Copy action need the Rust host
+and therefore require compiled-host verification. Feedback presentation and dismissal must still
+work in the viewer.
+
+`cargo test --features slint/mcp,demo-clips` exercises media validation and host imports with real
+media generated through GStreamer and a display-free Slint testing backend.
 
 UI work is not done until it has been looked at. Three levels, cheapest first:
 
@@ -47,8 +55,8 @@ UI work is not done until it has been looked at. Three levels, cheapest first:
   With that debug build ready, `python3 tests/ui_selection.py` runs the selection and per-video
   option regression checks in its own short-lived headless app processes. Rebuild after editing
   markup or the demo clips before running them. The binary embeds the markup from its last build,
-  while the viewer compiles at each launch. `demo-clips` builds `tests/fixtures/demo-window.slint`
-  so the regressions run against seeded clips; a plain `cargo build` starts with an empty list.
+  while the viewer compiles at each launch. `demo-clips` seeds clips in the Rust host
+  so the regressions have sample videos; a plain `cargo build` starts with an empty list.
 
 ## Map
 

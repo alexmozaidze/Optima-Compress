@@ -1,0 +1,70 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { ClickFocusArea } from "primitives.slint";
+import { ScrollRail } from "scroll-rail.slint";
+
+export component ImportFeedback inherits Rectangle {
+    in-out property <string> message;
+    in property <bool> busy;
+    in property <length> height-limit;
+
+    height: root.busy || root.message != ""
+        ? Math.min(root.height-limit, Math.max(28px, feedback-label.preferred-height) + 20px) : 0px;
+    visible: self.height > 0px;
+    clip: true;
+    background: root.busy ? Theme.accent.with-alpha(0.08) : Theme.warning.with-alpha(0.08);
+
+    feedback-scroll := ScrollView {
+        x: Theme.video-list-inset;
+        y: 10px;
+        width: Math.max(0px, root.width - 2 * Theme.video-list-inset - (root.busy ? 0px : dismiss-button.width + 12px));
+        height: Math.max(0px, root.height - 20px);
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        content-width: self.visible-width;
+        content-height: Math.max(self.visible-height, feedback-label.preferred-height);
+
+        feedback-label := Text {
+            x: 0px;
+            y: 0px;
+            width: Math.max(0px, feedback-scroll.visible-width - feedback-rail.width - 4px);
+            height: self.preferred-height;
+            text: root.busy ? "Checking videos…" : root.message;
+            color: root.busy ? Theme.text : Theme.warning;
+            font-size: Theme.font-size-small;
+            wrap: word-wrap;
+        }
+    }
+    feedback-rail := ScrollRail {
+        x: feedback-scroll.x + feedback-scroll.width - self.width;
+        y: feedback-scroll.y;
+        height: feedback-scroll.height;
+        content-y <=> feedback-scroll.content-y;
+        visible-height: feedback-scroll.visible-height;
+        content-height: feedback-scroll.content-height;
+    }
+    dismiss-button := Rectangle {
+        x: root.width - Theme.video-list-inset - self.width;
+        y: 10px;
+        width: dismiss-label.preferred-width + 12px;
+        height: 28px;
+        visible: !root.busy;
+        border-radius: Theme.radius-control;
+        background: dismiss-touch.has-hover ? Theme.card-bg : transparent;
+
+        dismiss-label := Text {
+            text: "Dismiss";
+            color: Theme.text;
+            font-size: Theme.font-size-small;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        dismiss-touch := ClickFocusArea {
+            mouse-cursor: pointer;
+            accessible-role: button;
+            accessible-label: "Dismiss import errors";
+            accessible-action-default => { root.message = ""; }
+            clicked => { root.message = ""; }
+        }
+    }
+}
