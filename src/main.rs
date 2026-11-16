@@ -73,6 +73,49 @@ enum DropAction {
     Drop(PathBuf),
 }
 
+#[cfg(target_os = "linux")]
+thread_local! {
+    static WAYLAND_DROP: std::cell::RefCell<Option<(limn_dnd::FileDnd, slint::Weak<AppWindow>)>> =
+        const { std::cell::RefCell::new(None) };
+    static WAYLAND_DROP_TRIED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(target_os = "linux")]
+fn attach_wayland_drop(window: &slint::Window, ui: &AppWindow) {
+    let already_tried = WAYLAND_DROP_TRIED.with(|tried| tried.replace(true));
+    if already_tried {
+        return;
+    }
+    let attached = window.with_winit_window(|winit_window| {
+        limn_dnd::FileDnd::attach(winit_window, || {
+            let _ = slint::invoke_from_event_loop(poll_wayland_drop);
+        })
+    });
+    let Some(Some(file_dnd)) = attached else { return; };
+    WAYLAND_DROP.with_borrow_mut(|state| *state = Some((file_dnd, ui.as_weak())));
+}
+
+#[cfg(target_os = "linux")]
+fn poll_wayland_drop() {
+    let events = WAYLAND_DROP.with_borrow(|state| {
+        state.as_ref().map(|(file_dnd, _)| file_dnd.poll()).unwrap_or_default()
+    });
+    let Some(ui) = WAYLAND_DROP.with_borrow(|state| state.as_ref().and_then(|(_, ui)| ui.upgrade()))
+    else {
+        return;
+    };
+    for event in events {
+        match event {
+            limn_dnd::DndEvent::Hovered { .. } => ui.set_file_drag_active(true),
+            limn_dnd::DndEvent::Left | limn_dnd::DndEvent::DragEnded => ui.set_file_drag_active(false),
+            limn_dnd::DndEvent::Dropped { paths, .. } => {
+                ui.set_file_drag_active(false);
+                append_clips(&ui, &paths);
+            }
+        }
+    }
+}
+
 fn drop_action(event: &winit::event::WindowEvent) -> Option<DropAction> {
     match event {
         winit::event::WindowEvent::HoveredFile(_) => Some(DropAction::Hover),
@@ -103,8 +146,10 @@ fn connect_import(ui: &AppWindow) {
 
     // NOTE: the winit backend never feeds DropArea, so file drops arrive as raw window events.
     let event_handle = ui.as_weak();
-    ui.window().on_winit_window_event(move |_window, event| {
+    ui.window().on_winit_window_event(move |window, event| {
         if let Some(ui) = event_handle.upgrade() {
+            #[cfg(target_os = "linux")]
+            attach_wayland_drop(window, &ui);
             handle_drop_event(&ui, event);
         }
         EventResult::Propagate

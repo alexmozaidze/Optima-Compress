@@ -29,6 +29,11 @@ slint = { version = "1.18.1", default-features = false, features = [
 # app never uses; wayland-data-control covers the compositor the app runs under.
 arboard = { version = "3.7", default-features = false, features = ["wayland-data-control"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+# NOTE: winit 0.30 has no Wayland file-drop backend, so this speaks wl_data_device on the window's
+# own connection. It returns None on X11, where winit's own drop events already work.
+limn-dnd = "0.1"
+
 [build-dependencies]
 slint-build = "1.18.1"
 
